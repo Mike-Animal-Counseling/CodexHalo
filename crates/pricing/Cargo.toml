@@ -1,0 +1,10 @@
+[package]
+name = "codexhalo-pricing"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+codexhalo-shared = { path = "../shared" }
+serde.workspace = true
+

@@ -1,0 +1,13 @@
+[package]
+name = "codexhalo-codex-client"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+codexhalo-shared = { path = "../shared" }
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+which = "8"
+

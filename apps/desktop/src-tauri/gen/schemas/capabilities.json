@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"Narrow capabilities for the bundled CodexHalo HUD.","local":true,"windows":["main"],"permissions":["core:default","core:window:allow-set-size","core:window:allow-start-dragging","opener:allow-open-url"]}}
