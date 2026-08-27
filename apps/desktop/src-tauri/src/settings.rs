@@ -1,19 +1,27 @@
 use std::{fs, path::PathBuf};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum VisibilityMode { Always, AutoHide, Tray }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum HudStyle { Capsule, Halo }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum QuotaFocus { Weekly, FiveHour }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum StartupBehavior { Off, StartWithWindows, ShowWhenCodexStarts }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ThemeMode { System, Light, Dark }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WindowPosition {
     pub x: i32,
@@ -34,8 +42,11 @@ pub struct Settings {
     pub show_reset_countdown: bool,
     pub theme: ThemeMode,
     pub shortcut: String,
-    pub launch_at_login: bool,
+    pub startup_behavior: StartupBehavior,
+    pub reduced_motion: bool,
+    pub quota_focus: QuotaFocus,
     pub window_position: Option<WindowPosition>,
+    pub surface_version: u8,
 }
 
 impl Default for Settings {
@@ -43,7 +54,7 @@ impl Default for Settings {
         Self {
             codex_enabled: false,
             visibility_mode: VisibilityMode::AutoHide,
-            hud_style: HudStyle::Capsule,
+            hud_style: HudStyle::Halo,
             always_on_top: true,
             edge_auto_hide: true,
             opacity: 0.96,
@@ -52,8 +63,11 @@ impl Default for Settings {
             show_reset_countdown: true,
             theme: ThemeMode::System,
             shortcut: "CommandOrControl+Shift+H".into(),
-            launch_at_login: false,
+            startup_behavior: StartupBehavior::Off,
+            reduced_motion: false,
+            quota_focus: QuotaFocus::Weekly,
             window_position: None,
+            surface_version: 3,
         }
     }
 }
@@ -68,9 +82,7 @@ impl SettingsStore {
     }
 
     pub fn load(&self) -> Settings {
-        fs::read(&self.path).ok()
-            .and_then(|bytes| serde_json::from_slice(&bytes).ok())
-            .unwrap_or_default()
+        fs::read(&self.path).ok().map(|bytes| decode_settings(&bytes)).unwrap_or_default()
     }
 
     pub fn save(&self, settings: &Settings) -> Result<(), String> {
@@ -81,6 +93,27 @@ impl SettingsStore {
     }
 }
 
+fn decode_settings(bytes: &[u8]) -> Settings {
+    let stored = serde_json::from_slice::<serde_json::Value>(bytes).ok();
+    let stored_surface_version = stored.as_ref()
+        .and_then(|value| value.get("surfaceVersion").and_then(serde_json::Value::as_u64))
+        .unwrap_or(1);
+    let mut settings = serde_json::from_slice::<Settings>(bytes).unwrap_or_default();
+    if stored.as_ref().is_some_and(|value| {
+        value.get("startupBehavior").is_none()
+            && value.get("launchAtLogin").and_then(serde_json::Value::as_bool) == Some(true)
+    }) {
+        settings.startup_behavior = StartupBehavior::StartWithWindows;
+    }
+    if stored_surface_version < 2 {
+        settings.hud_style = HudStyle::Halo;
+    }
+    if stored_surface_version < 3 {
+        settings.surface_version = 2;
+    }
+    settings
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -89,5 +122,22 @@ mod tests {
         let encoded = serde_json::to_string(&Settings::default()).unwrap();
         let decoded: Settings = serde_json::from_str(&encoded).unwrap();
         assert!(!decoded.codex_enabled);
+        assert_eq!(decoded.hud_style, HudStyle::Halo);
+        assert_eq!(decoded.quota_focus, QuotaFocus::Weekly);
+        assert_eq!(decoded.startup_behavior, StartupBehavior::Off);
+    }
+
+    #[test]
+    fn legacy_capsule_settings_migrate_to_the_orb_surface() {
+        let settings = decode_settings(br#"{"codexEnabled":true,"hudStyle":"capsule"}"#);
+        assert_eq!(settings.hud_style, HudStyle::Halo);
+        assert_eq!(settings.quota_focus, QuotaFocus::Weekly);
+        assert_eq!(settings.surface_version, 2);
+    }
+
+    #[test]
+    fn legacy_launch_at_login_migrates_to_start_with_windows() {
+        let settings = decode_settings(br#"{"launchAtLogin":true,"surfaceVersion":3}"#);
+        assert_eq!(settings.startup_behavior, StartupBehavior::StartWithWindows);
     }
 }

@@ -9,7 +9,7 @@ chrono.workspace = true
 codexhalo-shared = { path = "../shared" }
 serde_json.workspace = true
 walkdir = "2"
+zstd = "0.13"
 
 [dev-dependencies]
 tempfile = "3"
-

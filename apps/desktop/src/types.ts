@@ -1,6 +1,8 @@
 export type ThemeMode = "system" | "light" | "dark";
 export type HudStyle = "capsule" | "halo";
 export type VisibilityMode = "always" | "autoHide" | "tray";
+export type QuotaFocus = "weekly" | "fiveHour";
+export type StartupBehavior = "off" | "startWithWindows" | "showWhenCodexStarts";
 export type ConnectionState = "disabled" | "connecting" | "ready" | "unauthenticated" | "offline" | "error";
 
 export interface RateLimitWindow {
@@ -25,6 +27,7 @@ export interface TokenUsage extends ModelUsage {
 export interface PricingEstimate {
   value?: number;
   unavailableModels: string[];
+  estimatedModels?: string[];
   version: string;
 }
 
@@ -50,13 +53,16 @@ export interface Settings {
   showResetCountdown: boolean;
   theme: ThemeMode;
   shortcut: string;
-  launchAtLogin: boolean;
+  startupBehavior: StartupBehavior;
+  reducedMotion: boolean;
+  quotaFocus: QuotaFocus;
+  surfaceVersion: number;
 }
 
 export const defaultSettings: Settings = {
   codexEnabled: false,
   visibilityMode: "autoHide",
-  hudStyle: "capsule",
+  hudStyle: "halo",
   alwaysOnTop: true,
   edgeAutoHide: true,
   opacity: 0.96,
@@ -65,7 +71,10 @@ export const defaultSettings: Settings = {
   showResetCountdown: true,
   theme: "system",
   shortcut: "CommandOrControl+Shift+H",
-  launchAtLogin: false,
+  startupBehavior: "off",
+  reducedMotion: false,
+  quotaFocus: "weekly",
+  surfaceVersion: 3,
 };
 
 export const emptyUsage: TokenUsage = {

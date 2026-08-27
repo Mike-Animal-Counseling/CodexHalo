@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { freshness, quotaLabel, remaining, timeUntil } from "./format";
+import { freshness, quotaLabel, quotaTone, remaining, timeUntil } from "./format";
 
 describe("quota formatting", () => {
   it("converts used to unambiguous remaining percent", () => {
@@ -14,6 +14,13 @@ describe("quota formatting", () => {
     expect(quotaLabel(300)).toBe("5H");
     expect(quotaLabel(10080)).toBe("WEEK");
     expect(quotaLabel(1440)).toBe("1D");
+  });
+
+  it("uses one color threshold system for every quota window", () => {
+    expect(quotaTone(70)).toBe("ok");
+    expect(quotaTone(69)).toBe("warn");
+    expect(quotaTone(30)).toBe("warn");
+    expect(quotaTone(29)).toBe("low");
   });
 });
 

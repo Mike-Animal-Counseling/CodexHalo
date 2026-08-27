@@ -3,6 +3,10 @@ import type { RateLimitWindow } from "../types";
 export const remaining = (window?: RateLimitWindow) =>
   window ? Math.max(0, Math.min(100, 100 - window.usedPercent)) : 0;
 
+export type QuotaTone = "ok" | "warn" | "low";
+export const quotaTone = (value?: number | null): QuotaTone =>
+  value == null || value >= 70 ? "ok" : value >= 30 ? "warn" : "low";
+
 export const quotaLabel = (minutes: number) => {
   if (minutes === 300) return "5H";
   if (minutes === 10080) return "WEEK";

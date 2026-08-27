@@ -16,12 +16,13 @@
     "windows": [{
       "label": "main",
       "title": "CodexHalo",
-      "width": 352,
-      "height": 92,
-      "minWidth": 88,
-      "minHeight": 88,
+      "width": 404,
+      "height": 620,
+      "minWidth": 44,
+      "minHeight": 32,
       "decorations": false,
       "transparent": true,
+      "backgroundColor": [0, 0, 0, 0],
       "alwaysOnTop": true,
       "resizable": false,
       "skipTaskbar": true,
@@ -32,4 +33,3 @@
   },
   "bundle": { "active": false }
 }
-

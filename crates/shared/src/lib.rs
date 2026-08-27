@@ -32,10 +32,17 @@ pub struct ModelUsage {
 impl ModelUsage {
     pub fn add_assign(&mut self, other: &Self) {
         self.input += other.input;
-        self.cached_input = Some(self.cached_input.unwrap_or(0) + other.cached_input.unwrap_or(0));
+        self.cached_input = sum_optional(self.cached_input, other.cached_input);
         self.output += other.output;
-        self.reasoning = Some(self.reasoning.unwrap_or(0) + other.reasoning.unwrap_or(0));
+        self.reasoning = sum_optional(self.reasoning, other.reasoning);
         self.total += other.total;
+    }
+}
+
+fn sum_optional(left: Option<u64>, right: Option<u64>) -> Option<u64> {
+    match (left, right) {
+        (None, None) => None,
+        (left, right) => Some(left.unwrap_or(0) + right.unwrap_or(0)),
     }
 }
 
@@ -55,9 +62,9 @@ pub struct TokenUsage {
 impl TokenUsage {
     pub fn push(&mut self, model: &str, usage: ModelUsage) {
         self.input += usage.input;
-        self.cached_input = Some(self.cached_input.unwrap_or(0) + usage.cached_input.unwrap_or(0));
+        self.cached_input = sum_optional(self.cached_input, usage.cached_input);
         self.output += usage.output;
-        self.reasoning = Some(self.reasoning.unwrap_or(0) + usage.reasoning.unwrap_or(0));
+        self.reasoning = sum_optional(self.reasoning, usage.reasoning);
         self.total += usage.total;
         self.by_model.entry(model.to_owned()).or_default().add_assign(&usage);
     }
@@ -79,5 +86,15 @@ mod tests {
         total.push("gpt-test", ModelUsage { input: 10, cached_input: Some(4), output: 3, reasoning: Some(1), total: 14 });
         assert_eq!(total.total, 14);
         assert_eq!(total.by_model["gpt-test"].cached_input, Some(4));
+    }
+
+    #[test]
+    fn aggregation_preserves_missing_optional_counters() {
+        let mut total = TokenUsage::default();
+        total.push("legacy", ModelUsage { input: 10, output: 2, total: 12, ..Default::default() });
+        assert_eq!(total.cached_input, None);
+        assert_eq!(total.reasoning, None);
+        assert_eq!(total.by_model["legacy"].cached_input, None);
+        assert_eq!(total.by_model["legacy"].reasoning, None);
     }
 }

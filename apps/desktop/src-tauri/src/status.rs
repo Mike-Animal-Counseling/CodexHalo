@@ -39,11 +39,10 @@ fn require_enabled(enabled: bool) -> Result<(), String> {
     enabled.then_some(()).ok_or_else(|| "Codex access is disabled".to_owned())
 }
 
-fn sessions_dir() -> Result<PathBuf, String> {
-    let root = env::var_os("CODEX_HOME").map(PathBuf::from)
+fn codex_home() -> Result<PathBuf, String> {
+    env::var_os("CODEX_HOME").map(PathBuf::from)
         .or_else(|| dirs::home_dir().map(|path| path.join(".codex")))
-        .ok_or("Could not determine the Codex data directory")?;
-    Ok(root.join("sessions"))
+        .ok_or_else(|| "Could not determine the Codex data directory".to_owned())
 }
 
 pub async fn refresh(enabled: bool) -> Result<DashboardStatus, String> {
@@ -63,7 +62,7 @@ pub async fn refresh(enabled: bool) -> Result<DashboardStatus, String> {
         }
         QuotaRead::Authenticated(windows) => windows,
     };
-    let tokens = codexhalo_token_usage::aggregate_today(&sessions_dir()?)?;
+    let tokens = codexhalo_token_usage::aggregate_codex_home_today(&codex_home()?)?;
     let pricing = estimate(&tokens);
     Ok(DashboardStatus {
         connection: ConnectionState::Ready,

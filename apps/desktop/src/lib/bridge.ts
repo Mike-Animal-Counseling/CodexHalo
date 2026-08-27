@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { defaultSettings, type DashboardStatus, type Settings } from "../types";
 
@@ -9,6 +9,19 @@ declare global {
 
 export const isTauri = () => Boolean(window.__TAURI_INTERNALS__);
 const storageKey = "codexhalo.preview.settings";
+
+export type WindowSurface = "onboarding" | "compact" | "expanded";
+export type DockEdge = "left" | "right" | "top" | "bottom";
+export interface SettledOrb { x: number; y: number; edge: DockEdge | null }
+export interface DragOutcome { moved: boolean; settled: SettledOrb | null; layout: SurfaceLayout | null }
+export interface SurfaceLayout {
+  orbX: number;
+  orbY: number;
+  panelX: number;
+  panelY: number;
+  placement: "above" | "below" | "left" | "right";
+  edge?: DockEdge | null;
+}
 
 function previewSettings(): Settings {
   const stored = localStorage.getItem(storageKey);
@@ -21,7 +34,7 @@ function demoStatus(): DashboardStatus {
     connection: "ready",
     preview: true,
     windows: [
-      { id: "primary", durationMinutes: 300, usedPercent: 28, resetsAt: now + 8040 },
+      { id: "primary", durationMinutes: 300, usedPercent: 68, resetsAt: now + 7200 },
       { id: "secondary", durationMinutes: 10080, usedPercent: 57, resetsAt: now + 242400 },
     ],
     tokens: {
@@ -65,14 +78,38 @@ export const bridge = {
     if (isTauri()) return openUrl(url);
     window.open(url, "_blank", "noopener,noreferrer");
   },
-  async resize(expanded: boolean) {
-    if (!isTauri()) return;
-    const window = getCurrentWindow();
-    await window.setSize(new LogicalSize(expanded ? 404 : 352, expanded ? 620 : 92));
+  async closeWindow() {
+    if (isTauri()) return getCurrentWindow().close();
+    window.close();
   },
-  async trackPosition() {
+  async isWindowVisible(): Promise<boolean> {
+    if (!isTauri()) return true;
+    return getCurrentWindow().isVisible();
+  },
+  async setSurface(surface: WindowSurface): Promise<SurfaceLayout | null> {
+    if (!isTauri()) return surface === "expanded"
+      ? { orbX: 66, orbY: 0, panelX: 4, panelY: 31, placement: "below", edge: null }
+      : { orbX: 0, orbY: 0, panelX: 0, panelY: 31, placement: "below", edge: null };
+    return invoke<SurfaceLayout>("set_window_surface", { surface });
+  },
+  async startDragging(): Promise<DragOutcome> {
+    if (!isTauri()) return { moved: false, settled: null, layout: null };
+    return invoke<DragOutcome>("drag_orb");
+  },
+  async applyExpandedLayout(animate: boolean): Promise<SurfaceLayout | null> {
+    if (!isTauri()) return null;
+    return invoke<SurfaceLayout>("apply_expanded_layout", { animate });
+  },
+  async commitCompactSurface(status: DashboardStatus, refreshing: boolean): Promise<SurfaceLayout | null> {
+    if (!isTauri()) return { orbX: 0, orbY: 0, panelX: 0, panelY: 31, placement: "below", edge: null };
+    return invoke<SurfaceLayout>("commit_compact_surface", { status, refreshing });
+  },
+  async setEdgeRetracted(retracted: boolean, edge: DockEdge | null, animate: boolean): Promise<SettledOrb | null> {
+    if (!isTauri()) return null;
+    return invoke<SettledOrb>("set_orb_retracted", { retracted, edge, animate });
+  },
+  async trackFocus(onFocusChanged: (focused: boolean) => void) {
     if (!isTauri()) return () => {};
-    const window = getCurrentWindow();
-    return window.onMoved(({ payload }) => invoke("save_window_position", { x: payload.x, y: payload.y }));
+    return getCurrentWindow().onFocusChanged(({ payload }) => onFocusChanged(payload));
   },
 };

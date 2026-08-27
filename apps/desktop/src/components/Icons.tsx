@@ -22,8 +22,21 @@ export function CloseIcon({ size = 16 }: IconProps) {
   </svg>;
 }
 
+export function BackIcon({ size = 16, className }: IconProps) {
+  return <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="m14.5 6-6 6 6 6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>;
+}
+
 export function ChevronIcon({ size = 14 }: IconProps) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
     <path d="m8 10 4 4 4-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>;
+}
+
+export function InfoIcon({ size = 14, className }: IconProps) {
+  return <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.6" />
+    <path d="M12 11v5M12 8.2v.2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
   </svg>;
 }
