@@ -1,14 +1,28 @@
 # Architecture
 
-CodexHalo is a Tauri 2 desktop utility. React renders the HUD but receives no filesystem capability. Rust exposes only typed commands for settings, refresh, login launch, and window position.
+CodexHalo is a Tauri 2 Windows desktop utility. React renders the HUD but does
+not receive filesystem or shell capability. Rust exposes typed commands for
+settings, consent, refresh/login, and native-window behavior.
 
-```text
-React HUD -> narrow Tauri IPC -> consent gate
-                              -> Codex app-server quota client
-                              -> local session token parser
-                              -> local pricing engine
-```
+    React HUD -> narrow Tauri IPC -> backend consent gate
+                                  -> official Codex app-server quota adapter
+                                  -> local Codex session token parser
+                                  -> local versioned pricing engine
 
-The services are intentionally independent. Quota does not depend on token parsing, and pricing does not influence quota. Cached status is process-local; durable history can be added later without changing the UI contract.
+Quota, token parsing, model attribution, and pricing are separate modules. A
+refresh returns one coherent dashboard snapshot and the prior snapshot may be
+shown as stale when an upstream operation fails.
 
-The app-server method currently used is `account/rateLimits/read`, after `initialize` and `account/read`. Unknown window durations remain generic in the normalized model.
+Quota uses account/rateLimits/read after the official Codex app-server
+initialize and account/read flow. Every structured window containing a numeric
+duration and used percentage is normalized; unknown future durations are
+preserved rather than discarded.
+
+Token aggregation scans only sessions and archived_sessions under the effective
+Codex home. JSONL and JSONL.ZST rollouts are normalized into ordered per-thread
+events before cumulative deltas are calculated. This allows active, archived,
+resumed, concurrent, and subagent streams to share one attribution algorithm
+without depending on VS Code, CLI, or desktop process identity.
+
+Portable parsing, pricing, and shared data crates remain separate from
+Windows-specific Tauri window, tray, startup, and process-detection code.
