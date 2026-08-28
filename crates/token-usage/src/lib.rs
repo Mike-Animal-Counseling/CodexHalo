@@ -11,12 +11,14 @@ use serde_json::Value;
 use walkdir::WalkDir;
 
 const UNCLASSIFIED_MODEL: &str = "unknown-codex";
+const INTERNAL_REVIEW_MODEL: &str = "codex-auto-review";
 const MAX_ROLLOUT_BYTES: u64 = 512 * 1024 * 1024;
 const ZSTD_MAGIC: [u8; 4] = [0x28, 0xb5, 0x2f, 0xfd];
 
 #[derive(Default)]
 struct StreamState {
     current_model: Option<String>,
+    current_turn_id: Option<String>,
     previous_total: Option<ModelUsage>,
     previous_legacy: Option<LegacySnapshot>,
 }
@@ -25,6 +27,7 @@ struct StreamState {
 struct TokenRecordOwner {
     thread_id: Option<String>,
     parent_thread_id: Option<String>,
+    path: PathBuf,
 }
 
 #[derive(Clone, Eq, Ord, PartialEq, PartialOrd)]
@@ -45,7 +48,10 @@ struct SequencedEvent {
 }
 
 enum EventKind {
-    Model(Option<String>),
+    Context {
+        model: Option<String>,
+        turn_id: Option<String>,
+    },
     Token(TokenEvent),
 }
 
@@ -53,7 +59,6 @@ struct TokenEvent {
     cumulative: Option<ModelUsage>,
     last: Option<ModelUsage>,
     fallback_model: Option<String>,
-    fingerprint: String,
 }
 
 #[derive(Clone, PartialEq)]
@@ -61,6 +66,25 @@ struct LegacySnapshot {
     timestamp: Option<String>,
     model: String,
     usage: ModelUsage,
+}
+
+struct UsageOccurrence {
+    owner: TokenRecordOwner,
+    usage: ModelUsage,
+    model: Option<String>,
+    turn_id: Option<String>,
+    on_selected_day: bool,
+    outside_selected_day: bool,
+    inherited_projection: bool,
+}
+
+struct MergedInterval {
+    owners: Vec<TokenRecordOwner>,
+    usage: ModelUsage,
+    models: Vec<String>,
+    turn_ids: Vec<String>,
+    on_selected_day: bool,
+    outside_selected_day: bool,
 }
 
 pub fn aggregate_day(root: &Path, day: NaiveDate) -> Result<TokenUsage, String> {
@@ -78,7 +102,6 @@ pub fn aggregate_codex_home_day(codex_home: &Path, day: NaiveDate) -> Result<Tok
 }
 
 fn aggregate_roots_day(roots: &[PathBuf], day: NaiveDate) -> Result<TokenUsage, String> {
-    let mut result = TokenUsage::default();
     let mut paths = Vec::new();
     for root in roots {
         if !root.exists() {
@@ -106,12 +129,12 @@ fn aggregate_roots_day(roots: &[PathBuf], day: NaiveDate) -> Result<TokenUsage, 
         }
     }
 
-    let mut seen_token_records = HashMap::new();
+    let mut intervals = HashMap::<String, Vec<MergedInterval>>::new();
     for events in streams.values_mut() {
         events.sort_by(compare_events);
-        process_stream(events, day, &mut result, &mut seen_token_records);
+        process_stream(events, day, &mut intervals);
     }
-    Ok(result)
+    Ok(finalize_intervals(intervals))
 }
 
 pub fn aggregate_today(root: &Path) -> Result<TokenUsage, String> {
@@ -163,7 +186,10 @@ fn collect_file(
     path: &Path,
     streams: &mut BTreeMap<StreamKey, Vec<SequencedEvent>>,
 ) -> Result<(), String> {
-    let mut owner = TokenRecordOwner::default();
+    let mut owner = TokenRecordOwner {
+        path: path.to_path_buf(),
+        ..Default::default()
+    };
     let mut subagent_history_start_ordinal = None;
     for (line_number, line) in rollout_reader(path)?.lines().enumerate() {
         let Ok(line) = line else { continue };
@@ -201,7 +227,10 @@ fn collect_file(
                 line_number,
                 owner: owner.clone(),
                 subagent_history_start_ordinal,
-                kind: EventKind::Model(model_id(payload.get("model"))),
+                kind: EventKind::Context {
+                    model: model_id(payload.get("model")),
+                    turn_id: string_field(payload, &["turn_id", "turnId"]),
+                },
             });
             continue;
         }
@@ -221,7 +250,6 @@ fn collect_file(
             continue;
         }
 
-        let fingerprint = serde_json::to_string(&record).unwrap_or(line);
         streams.entry(key).or_default().push(SequencedEvent {
             timestamp,
             timestamp_text,
@@ -234,7 +262,6 @@ fn collect_file(
                 cumulative,
                 last,
                 fallback_model,
-                fingerprint,
             }),
         });
     }
@@ -256,7 +283,7 @@ fn compare_events(left: &SequencedEvent, right: &SequencedEvent) -> Ordering {
 
 fn event_rank(event: &EventKind) -> u8 {
     match event {
-        EventKind::Model(_) => 0,
+        EventKind::Context { .. } => 0,
         EventKind::Token(_) => 1,
     }
 }
@@ -264,55 +291,59 @@ fn event_rank(event: &EventKind) -> u8 {
 fn process_stream(
     events: &[SequencedEvent],
     day: NaiveDate,
-    total: &mut TokenUsage,
-    seen_token_records: &mut HashMap<String, Vec<TokenRecordOwner>>,
+    intervals: &mut HashMap<String, Vec<MergedInterval>>,
 ) {
     let mut state = StreamState::default();
+    let mut file_contexts = HashMap::<PathBuf, StreamState>::new();
     for event in events {
         let EventKind::Token(token_event) = &event.kind else {
-            if let EventKind::Model(model) = &event.kind {
+            if let EventKind::Context { model, turn_id } = &event.kind {
+                let file_state = file_contexts.entry(event.path.clone()).or_default();
+                file_state.current_model = model.clone();
+                file_state.current_turn_id = turn_id.clone();
                 state.current_model = model.clone();
+                state.current_turn_id = turn_id.clone();
             }
             continue;
         };
 
-        let model = state
-            .current_model
-            .clone()
+        let file_context = file_contexts.get(&event.path);
+        let model = file_context
+            .map(|context| context.current_model.clone())
+            .unwrap_or_else(|| state.current_model.clone())
             .or_else(|| token_event.fallback_model.clone())
-            .unwrap_or_else(|| UNCLASSIFIED_MODEL.to_owned());
+            .filter(|model| !model.is_empty());
+        let turn_id = file_context
+            .and_then(|context| context.current_turn_id.clone())
+            .or_else(|| state.current_turn_id.clone());
         let inherited_projection = event
             .subagent_history_start_ordinal
             .zip(event.ordinal)
             .is_some_and(|(start, ordinal)| ordinal < start);
 
-        if !inherited_projection {
-            let owners = seen_token_records
-                .entry(token_event.fingerprint.clone())
-                .or_default();
-            if owners
-                .iter()
-                .any(|previous| related_stream(&event.owner, previous))
-            {
-                continue;
-            }
-            owners.push(event.owner.clone());
-        }
-
-        let Some(usage) = next_usage(
+        let Some((usage, fingerprint)) = next_usage(
             &mut state,
             token_event,
             event.timestamp_text.clone(),
-            model.clone(),
+            model.as_deref(),
         ) else {
             continue;
         };
 
-        // Baselines advance for every unique snapshot, including snapshots outside the selected
-        // day and inherited subagent history. This makes a resumed file count only its new delta.
-        if !inherited_projection && on_day_timestamp(event.timestamp.as_ref(), day) && !usage_is_zero(&usage) {
-            total.push(&model, usage);
-        }
+        let on_selected_day = on_day_timestamp(event.timestamp.as_ref(), day);
+        merge_occurrence(
+            intervals,
+            fingerprint,
+            UsageOccurrence {
+                owner: event.owner.clone(),
+                usage,
+                model,
+                turn_id,
+                on_selected_day,
+                outside_selected_day: event.timestamp.is_some() && !on_selected_day,
+                inherited_projection,
+            },
+        );
     }
 }
 
@@ -320,33 +351,162 @@ fn next_usage(
     state: &mut StreamState,
     event: &TokenEvent,
     timestamp: Option<String>,
-    model: String,
-) -> Option<ModelUsage> {
-    if let Some(cumulative) = &event.cumulative {
+    model: Option<&str>,
+) -> Option<(ModelUsage, String)> {
+    if let (Some(cumulative), Some(last)) = (&event.cumulative, &event.last) {
+        state.previous_legacy = None;
+        state.previous_total = Some(cumulative.clone());
+        Some((
+            last.clone(),
+            format!("last|{}|{}", usage_key(cumulative), usage_key(last)),
+        ))
+    } else if let Some(cumulative) = &event.cumulative {
         state.previous_legacy = None;
         let delta = state
             .previous_total
             .as_ref()
             .map_or_else(|| cumulative.clone(), |previous| usage_delta(cumulative, previous));
         state.previous_total = Some(cumulative.clone());
-        Some(delta)
+        Some((
+            delta,
+            format!("cumulative|{}", usage_key(cumulative)),
+        ))
     } else if let Some(usage) = &event.last {
+        let model = model.unwrap_or(UNCLASSIFIED_MODEL).to_owned();
         let snapshot = LegacySnapshot {
-            timestamp,
-            model,
+            timestamp: timestamp.clone(),
+            model: model.clone(),
             usage: usage.clone(),
         };
         if state.previous_legacy.as_ref() == Some(&snapshot) {
             return None;
         }
         state.previous_legacy = Some(snapshot);
-        Some(usage.clone())
+        Some((
+            usage.clone(),
+            format!(
+                "legacy|{}|{}|{}",
+                timestamp.unwrap_or_default(),
+                model,
+                usage_key(usage)
+            ),
+        ))
     } else {
         None
     }
 }
 
+fn merge_occurrence(
+    intervals: &mut HashMap<String, Vec<MergedInterval>>,
+    fingerprint: String,
+    occurrence: UsageOccurrence,
+) {
+    let buckets = intervals.entry(fingerprint).or_default();
+    if let Some(bucket) = buckets
+        .iter_mut()
+        .find(|bucket| {
+            bucket
+                .owners
+                .iter()
+                .any(|owner| related_stream(&occurrence.owner, owner))
+                && turn_ids_compatible(&bucket.turn_ids, occurrence.turn_id.as_deref())
+        })
+    {
+        if !bucket.owners.iter().any(|owner| owner.path == occurrence.owner.path) {
+            bucket.owners.push(occurrence.owner);
+        }
+        if let Some(model) = occurrence.model {
+            if !bucket.models.contains(&model) {
+                bucket.models.push(model);
+            }
+        }
+        if let Some(turn_id) = occurrence.turn_id {
+            if !bucket.turn_ids.contains(&turn_id) {
+                bucket.turn_ids.push(turn_id);
+            }
+        }
+        if !occurrence.inherited_projection {
+            bucket.on_selected_day |= occurrence.on_selected_day;
+            bucket.outside_selected_day |= occurrence.outside_selected_day;
+        }
+        return;
+    }
+
+    let mut models = Vec::new();
+    if let Some(model) = occurrence.model {
+        models.push(model);
+    }
+    let mut turn_ids = Vec::new();
+    if let Some(turn_id) = occurrence.turn_id {
+        turn_ids.push(turn_id);
+    }
+    buckets.push(MergedInterval {
+        owners: vec![occurrence.owner],
+        usage: occurrence.usage,
+        models,
+        turn_ids,
+        on_selected_day: !occurrence.inherited_projection && occurrence.on_selected_day,
+        outside_selected_day: !occurrence.inherited_projection && occurrence.outside_selected_day,
+    });
+}
+
+fn turn_ids_compatible(existing: &[String], incoming: Option<&str>) -> bool {
+    existing.is_empty()
+        || incoming.is_none()
+        || existing
+            .iter()
+            .any(|turn_id| Some(turn_id.as_str()) == incoming)
+}
+
+fn finalize_intervals(intervals: HashMap<String, Vec<MergedInterval>>) -> TokenUsage {
+    let mut total = TokenUsage::default();
+    for buckets in intervals.into_values() {
+        for mut interval in buckets {
+            if !interval.on_selected_day
+                || interval.outside_selected_day
+                || usage_is_zero(&interval.usage)
+            {
+                continue;
+            }
+            interval.models.sort();
+            interval.models.dedup();
+            let mut user_models = interval
+                .models
+                .iter()
+                .filter(|model| !is_internal_model(model))
+                .cloned();
+            let first = user_models.next();
+            let model = match (first, user_models.next()) {
+                (Some(model), None) => model,
+                (Some(_), Some(_)) => UNCLASSIFIED_MODEL.to_owned(),
+                (None, _) if interval.models.iter().any(|model| is_internal_model(model)) => continue,
+                (None, _) => UNCLASSIFIED_MODEL.to_owned(),
+            };
+            total.push(&model, interval.usage);
+        }
+    }
+    total
+}
+
+fn usage_key(usage: &ModelUsage) -> String {
+    format!(
+        "{},{},{},{},{}",
+        usage.input,
+        usage.cached_input.map_or_else(|| "-".to_owned(), |value| value.to_string()),
+        usage.output,
+        usage.reasoning.map_or_else(|| "-".to_owned(), |value| value.to_string()),
+        usage.total
+    )
+}
+
+fn is_internal_model(model: &str) -> bool {
+    model.eq_ignore_ascii_case(INTERNAL_REVIEW_MODEL)
+}
+
 fn related_stream(current: &TokenRecordOwner, previous: &TokenRecordOwner) -> bool {
+    if current.path == previous.path {
+        return true;
+    }
     match (&current.thread_id, &previous.thread_id) {
         (Some(current), Some(previous)) if current == previous => true,
         (Some(current), _) if previous.parent_thread_id.as_ref() == Some(current) => true,
@@ -809,6 +969,90 @@ mod tests {
         assert_eq!(usage.by_model["gpt-5.6-sol"].total, 100);
         assert_eq!(usage.by_model["gpt-5.6-terra"].total, 40);
         assert_eq!(usage.total, 140);
+    }
+
+    #[test]
+    fn authoritative_last_intervals_deduplicate_divergent_resume_history() {
+        let target = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target");
+        let temp = tempfile::tempdir_in(target).unwrap();
+        fs::write(temp.path().join("a-known.jsonl"), concat!(
+            r#"{"timestamp":"2026-08-23T12:00:00Z","ordinal":0,"type":"session_meta","payload":{"id":"branched-thread"}}"#, "\n",
+            r#"{"timestamp":"2026-08-23T12:00:01Z","ordinal":1,"type":"turn_context","payload":{"turn_id":"turn-a","model":"gpt-5.6-sol"}}"#, "\n",
+            r#"{"timestamp":"2026-08-23T12:00:02Z","ordinal":2,"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":80,"output_tokens":20,"total_tokens":100},"last_token_usage":{"input_tokens":80,"output_tokens":20,"total_tokens":100}}}}"#, "\n",
+            r#"{"timestamp":"2026-08-23T12:01:01Z","ordinal":3,"type":"turn_context","payload":{"turn_id":"turn-b","model":"gpt-5.6-sol"}}"#, "\n",
+            r#"{"timestamp":"2026-08-23T12:01:02Z","ordinal":4,"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":110,"output_tokens":30,"total_tokens":140},"last_token_usage":{"input_tokens":30,"output_tokens":10,"total_tokens":40}}}}"#, "\n",
+        )).unwrap();
+        fs::write(temp.path().join("b-resumed.jsonl"), concat!(
+            r#"{"timestamp":"2026-08-23T11:59:58Z","ordinal":0,"type":"session_meta","payload":{"id":"branched-thread"}}"#, "\n",
+            r#"{"timestamp":"2026-08-23T11:59:59Z","ordinal":2,"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":80,"output_tokens":20,"total_tokens":100},"last_token_usage":{"input_tokens":80,"output_tokens":20,"total_tokens":100}}}}"#, "\n",
+            r#"{"timestamp":"2026-08-23T12:02:01Z","ordinal":5,"type":"turn_context","payload":{"turn_id":"turn-c","model":"gpt-5.6-sol"}}"#, "\n",
+            r#"{"timestamp":"2026-08-23T12:02:02Z","ordinal":6,"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":130,"output_tokens":30,"total_tokens":160},"last_token_usage":{"input_tokens":50,"output_tokens":10,"total_tokens":60}}}}"#, "\n",
+        )).unwrap();
+
+        let usage = aggregate_day(temp.path(), day()).unwrap();
+        assert_eq!(usage.total, 200);
+        assert_eq!(usage.by_model["gpt-5.6-sol"].total, 200);
+        assert!(!usage.by_model.contains_key(UNCLASSIFIED_MODEL));
+    }
+
+    #[test]
+    fn repeated_modern_interval_with_changed_wrapper_is_counted_once() {
+        let temp = fixture(&[
+            r#"{"timestamp":"2026-08-23T12:00:00Z","type":"turn_context","payload":{"turn_id":"same-turn","model":"gpt-5.6-terra"}}"#,
+            r#"{"timestamp":"2026-08-23T12:01:00Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":80,"output_tokens":20,"total_tokens":100},"last_token_usage":{"input_tokens":80,"output_tokens":20,"total_tokens":100}},"rate_limits":{"primary":{"used_percent":1}}}}"#,
+            r#"{"timestamp":"2026-08-23T12:01:01Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":80,"output_tokens":20,"total_tokens":100},"last_token_usage":{"input_tokens":80,"output_tokens":20,"total_tokens":100}},"rate_limits":{"primary":{"used_percent":2}}}}"#,
+        ]);
+
+        let usage = aggregate_day(temp.path(), day()).unwrap();
+        assert_eq!(usage.total, 100);
+        assert_eq!(usage.by_model["gpt-5.6-terra"].total, 100);
+    }
+
+    #[test]
+    fn identical_counters_after_reset_count_for_distinct_turns() {
+        let temp = fixture(&[
+            r#"{"timestamp":"2026-08-23T12:00:00Z","type":"turn_context","payload":{"turn_id":"before-reset","model":"gpt-5.5"}}"#,
+            r#"{"timestamp":"2026-08-23T12:01:00Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":80,"output_tokens":20,"total_tokens":100},"last_token_usage":{"input_tokens":80,"output_tokens":20,"total_tokens":100}}}}"#,
+            r#"{"timestamp":"2026-08-23T12:02:00Z","type":"turn_context","payload":{"turn_id":"after-reset","model":"gpt-5.5"}}"#,
+            r#"{"timestamp":"2026-08-23T12:03:00Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":80,"output_tokens":20,"total_tokens":100},"last_token_usage":{"input_tokens":80,"output_tokens":20,"total_tokens":100}}}}"#,
+        ]);
+
+        let usage = aggregate_day(temp.path(), day()).unwrap();
+        assert_eq!(usage.total, 200);
+        assert_eq!(usage.by_model["gpt-5.5"].total, 200);
+    }
+
+    #[test]
+    fn internal_auto_review_intervals_are_excluded() {
+        let temp = fixture(&[
+            r#"{"timestamp":"2026-08-23T12:00:00Z","type":"turn_context","payload":{"turn_id":"user-turn","model":"gpt-5.6-sol"}}"#,
+            r#"{"timestamp":"2026-08-23T12:01:00Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":40,"output_tokens":10,"total_tokens":50},"last_token_usage":{"input_tokens":40,"output_tokens":10,"total_tokens":50}}}}"#,
+            r#"{"timestamp":"2026-08-23T12:02:00Z","type":"turn_context","payload":{"turn_id":"review-turn","model":"codex-auto-review"}}"#,
+            r#"{"timestamp":"2026-08-23T12:03:00Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":55,"output_tokens":15,"total_tokens":70},"last_token_usage":{"input_tokens":15,"output_tokens":5,"total_tokens":20}}}}"#,
+        ]);
+
+        let usage = aggregate_day(temp.path(), day()).unwrap();
+        assert_eq!(usage.total, 50);
+        assert_eq!(usage.by_model["gpt-5.6-sol"].total, 50);
+        assert!(!usage.by_model.contains_key(INTERNAL_REVIEW_MODEL));
+    }
+
+    #[test]
+    fn replayed_prior_day_interval_does_not_repopulate_today() {
+        let target = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target");
+        let temp = tempfile::tempdir_in(target).unwrap();
+        fs::write(temp.path().join("old.jsonl"), concat!(
+            r#"{"timestamp":"2026-08-22T12:00:00Z","type":"session_meta","payload":{"id":"replayed-thread"}}"#, "\n",
+            r#"{"timestamp":"2026-08-22T12:00:01Z","type":"turn_context","payload":{"turn_id":"old-turn","model":"gpt-5.6-sol"}}"#, "\n",
+            r#"{"timestamp":"2026-08-22T12:00:02Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":80,"output_tokens":20,"total_tokens":100},"last_token_usage":{"input_tokens":80,"output_tokens":20,"total_tokens":100}}}}"#, "\n",
+        )).unwrap();
+        fs::write(temp.path().join("replayed.jsonl"), concat!(
+            r#"{"timestamp":"2026-08-23T12:00:00Z","type":"session_meta","payload":{"id":"replayed-thread"}}"#, "\n",
+            r#"{"timestamp":"2026-08-23T12:00:02Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":80,"output_tokens":20,"total_tokens":100},"last_token_usage":{"input_tokens":80,"output_tokens":20,"total_tokens":100}}}}"#, "\n",
+        )).unwrap();
+
+        let usage = aggregate_day(temp.path(), day()).unwrap();
+        assert_eq!(usage, TokenUsage::default());
     }
 
     #[test]
