@@ -10,3 +10,10 @@ target/
 .idea/
 .vscode/
 .protocol-schema/
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
+*.pem
+*.key

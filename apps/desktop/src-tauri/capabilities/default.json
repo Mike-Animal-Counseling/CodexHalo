@@ -4,10 +4,9 @@
   "description": "Narrow capabilities for the bundled CodexHalo HUD.",
   "windows": ["main", "compact-handoff"],
   "permissions": [
-    "core:default",
-    "core:window:allow-close",
-    "core:window:allow-set-size",
-    "core:window:allow-start-dragging",
-    "opener:allow-open-url"
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:window:allow-is-visible",
+    "core:window:allow-start-dragging"
   ]
 }

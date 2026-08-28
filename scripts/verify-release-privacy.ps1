@@ -8,7 +8,7 @@ $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $releaseRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot "target\release"))
 $distRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot "apps\desktop\dist"))
 if (-not $ExePath) {
-    $ExePath = Join-Path $releaseRoot "codexhalo-desktop.exe"
+    $ExePath = Join-Path $releaseRoot "CodexHalo.exe"
 }
 $ExePath = [IO.Path]::GetFullPath($ExePath)
 
