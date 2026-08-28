@@ -326,6 +326,11 @@ fn get_settings(state: State<'_, AppState>) -> Result<Settings, String> {
 }
 
 #[tauri::command]
+fn hide_window(window: WebviewWindow) -> Result<(), String> {
+    window.hide().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn set_settings(window: WebviewWindow, state: State<'_, AppState>, mut settings: Settings) -> Result<Settings, String> {
     settings.opacity = settings.opacity.clamp(0.70, 1.0);
     let mut settings_guard = state.settings.lock().map_err(|error| error.to_string())?;
@@ -803,23 +808,20 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
 
 fn restore_position(window: &WebviewWindow, position: Option<WindowPosition>) {
     let Some(position) = position else { return };
-    let valid = window.available_monitors().unwrap_or_default().iter().any(|monitor| {
-        let work_area = monitor.work_area();
-        let origin = work_area.position;
-        let size = work_area.size;
-        position.x >= origin.x && position.y >= origin.y
-            && position.x < origin.x + size.width as i32
-            && position.y < origin.y + size.height as i32
-    });
-    if valid {
-        let _ = window.set_position(PhysicalPosition::new(position.x, position.y));
-    }
+    let Ok(size) = window.outer_size() else { return };
+    let Ok(bounds) = display_for_point(window, position.x, position.y) else { return };
+    let recovered = clamp_position(position, size.width as i32, size.height as i32, bounds);
+    let _ = window.set_position(PhysicalPosition::new(recovered.x, recovered.y));
 }
 
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_autostart::Builder::new().arg("--autostart").build())
+        .plugin(
+            tauri_plugin_autostart::Builder::new()
+                .app_name("CodexHalo")
+                .arg("--autostart")
+                .build(),
+        )
         .plugin(tauri_plugin_global_shortcut::Builder::new().with_handler(|app, _, event| {
             if event.state() != ShortcutState::Pressed { return; }
             if let Some(window) = app.get_webview_window("main") {
@@ -877,13 +879,15 @@ pub fn run() {
             .visible(false)
             .build()?;
             let _ = handoff.set_ignore_cursor_events(true);
-            app.global_shortcut().register(shortcut.as_str())?;
+            if let Err(error) = app.global_shortcut().register(shortcut.as_str()) {
+                eprintln!("Could not register global shortcut {shortcut}: {error}");
+            }
             setup_tray(app)?;
             sync_codex_monitor(app.handle(), app.state::<AppState>().inner(), startup_behavior);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            get_settings, set_settings, set_codex_enabled, refresh_status,
+            get_settings, hide_window, set_settings, set_codex_enabled, refresh_status,
             start_codex_login, set_window_surface, set_orb_retracted, apply_expanded_layout,
             commit_compact_surface, drag_orb
         ])
@@ -1055,6 +1059,14 @@ mod geometry_tests {
     fn missing_display_positions_recover_inside_the_active_display() {
         let position = clamp_position(WindowPosition { x: 2400, y: -300 }, 148, 32, DISPLAY);
         assert_eq!(position, WindowPosition { x: 1772, y: 0 });
+    }
+
+    #[test]
+    fn onboarding_restore_uses_the_current_surface_dimensions() {
+        let compact_anchor = WindowPosition { x: 1772, y: 1048 };
+        let restored = clamp_position(compact_anchor, 404, 620, DISPLAY);
+        assert_eq!(restored, WindowPosition { x: 1516, y: 460 });
+        assert_eq!(compact_anchor, WindowPosition { x: 1772, y: 1048 });
     }
 
     #[test]

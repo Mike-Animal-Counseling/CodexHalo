@@ -1,6 +1,6 @@
 import { useState } from "react";
-import type { DashboardStatus, QuotaFocus, RateLimitWindow } from "../types";
-import { compactNumber, currency, freshness, quotaTone, remaining, timeUntil } from "../lib/format";
+import type { DashboardStatus, RateLimitWindow } from "../types";
+import { compactNumber, currency, freshness, orderedQuotaWindows, quotaName, quotaTone, remaining, timeUntil } from "../lib/format";
 import { InfoIcon, RefreshIcon, SlidersIcon } from "./Icons";
 import { QuotaRing } from "./QuotaRing";
 
@@ -8,15 +8,14 @@ function StatRow({ label, value }: { label: string; value: string }) {
   return <div className="panel-stat"><span>{label}</span><b>{value}</b></div>;
 }
 
-function QuotaWindowRow({ label, id, window, reducedMotion, secondary = false }: {
-  label: string;
-  id: "weekly" | "5h";
-  window?: RateLimitWindow;
+function QuotaWindowRow({ window, reducedMotion, secondary = false }: {
+  window: RateLimitWindow;
   reducedMotion: boolean;
   secondary?: boolean;
 }) {
-  const value = window ? Math.round(remaining(window)) : null;
-  const resetValue = window?.resetsAt ? timeUntil(window.resetsAt) : "Reset time unavailable";
+  const label = quotaName(window.durationMinutes);
+  const value = Math.round(remaining(window));
+  const resetValue = window.resetsAt ? timeUntil(window.resetsAt) : "Reset time unavailable";
   const reset = resetValue.startsWith("Resets in ")
     ? `Resets ${resetValue.slice("Resets in ".length)}`
     : resetValue === "Resetting now" ? "Resets now" : "Reset unavailable";
@@ -24,34 +23,35 @@ function QuotaWindowRow({ label, id, window, reducedMotion, secondary = false }:
 
   return <section className={`quota-row ${secondary ? "quota-row--secondary" : ""}`} aria-label={`${label} quota`}>
     <div className="quota-row__labels"><strong>{label}</strong><span>{reset}</span></div>
-    <div className="quota-row__meter"><div><i className={tone} data-quota={id}
-      style={{ width: `${value ?? 0}%`, transition: reducedMotion ? "none" : undefined }} /></div>
+    <div className="quota-row__meter"><div><i className={tone} data-quota={window.id}
+      style={{ width: `${value}%`, transition: reducedMotion ? "none" : undefined }} /></div>
       <b>{value == null ? "—" : `${value}% left`}</b></div>
   </section>;
 }
 
-export function ExpandedPanel({ status, refreshing, reducedMotion, quotaFocus = "weekly", onRefresh, onSettings }: {
+export function ExpandedPanel({ status, refreshing, reducedMotion, quotaWindowMinutes, onRefresh, onSettings }: {
   status: DashboardStatus;
   refreshing: boolean;
   reducedMotion: boolean;
-  quotaFocus?: QuotaFocus;
+  quotaWindowMinutes?: number | null;
   onRefresh: () => void;
   onSettings: () => void;
 }) {
   const [showTip, setShowTip] = useState(false);
-  const weekly = status.windows.find((window) => window.durationMinutes === 10080);
-  const fiveHour = status.windows.find((window) => window.durationMinutes === 300);
-  const weeklyRemaining = weekly ? Math.round(remaining(weekly)) : null;
-  const fiveHourRemaining = fiveHour ? Math.round(remaining(fiveHour)) : null;
-  const focusedRemaining = quotaFocus === "fiveHour" ? fiveHourRemaining : weeklyRemaining;
+  const quotaWindows = orderedQuotaWindows(status.windows, quotaWindowMinutes);
+  const focusedWindow = quotaWindows[0];
+  const focusedRemaining = focusedWindow ? Math.round(remaining(focusedWindow)) : null;
   const models = Object.entries(status.tokens.byModel).sort((a, b) => b[1].total - a[1].total);
   const apiAvailable = status.pricing.value != null;
   const modelLabel = (model: string) => model === "unknown-codex" ? "Codex · unclassified" : model;
 
-  return <main className="panel" role="dialog" aria-label="CodexHalo details">
+  const manyQuotas = quotaWindows.length > 2;
+  const overflowingQuotas = quotaWindows.length > 4;
+
+  return <main className={`panel ${manyQuotas ? "panel--many-quotas" : ""}`} role="dialog" aria-label="CodexHalo details">
     <header className="panel-header">
-      <QuotaRing value={focusedRemaining} label={quotaFocus === "fiveHour" ? "5 hour" : "Weekly"}
-        quotaId={quotaFocus === "fiveHour" ? "5h" : "weekly"} size={48} stroke={2.25} reducedMotion={reducedMotion} />
+      <QuotaRing value={focusedRemaining} label={focusedWindow ? quotaName(focusedWindow.durationMinutes) : "Codex"}
+        quotaId={focusedWindow?.id ?? "unavailable"} size={48} stroke={2.25} reducedMotion={reducedMotion} />
       <div className="panel-identity"><div><strong>CodexHalo</strong><i className={`connection-dot connection-dot--${status.connection}`} /></div>
         <span>{freshness(status.updatedAt)}{status.preview ? " · Preview" : ""}</span></div>
       <nav>
@@ -60,14 +60,11 @@ export function ExpandedPanel({ status, refreshing, reducedMotion, quotaFocus = 
       </nav>
     </header>
 
-    <div className="quota-stack">
-      {quotaFocus === "fiveHour" ? <>
-        <QuotaWindowRow label="5 hour" id="5h" window={fiveHour} reducedMotion={reducedMotion} />
-        <QuotaWindowRow label="Weekly" id="weekly" window={weekly} reducedMotion={reducedMotion} secondary />
-      </> : <>
-        <QuotaWindowRow label="Weekly" id="weekly" window={weekly} reducedMotion={reducedMotion} />
-        <QuotaWindowRow label="5 hour" id="5h" window={fiveHour} reducedMotion={reducedMotion} secondary />
-      </>}
+    <div className={`quota-stack ${overflowingQuotas ? "quota-stack--scroll" : ""}`}
+      aria-label={overflowingQuotas ? "Quota windows" : undefined}
+      tabIndex={overflowingQuotas ? 0 : undefined}>
+      {quotaWindows.map((window, index) =>
+        <QuotaWindowRow key={window.id} window={window} reducedMotion={reducedMotion} secondary={index > 0} />)}
     </div>
 
     <div className="panel-divider" />

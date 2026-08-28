@@ -1,7 +1,7 @@
 use codexhalo_shared::{ModelUsage, TokenUsage};
 use serde::{Deserialize, Serialize};
 
-pub const PRICING_VERSION: &str = "2026-08-23";
+pub const PRICING_VERSION: &str = "2026-08-27";
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ModelPricing {
@@ -28,7 +28,7 @@ pub fn pricing_for(model: &str) -> Option<ModelPricing> {
     } else if normalized.starts_with("gpt-5.6-terra") {
         ModelPricing { input_per_million: 2.0, cached_input_per_million: Some(0.20), output_per_million: 12.0 }
     } else if normalized == "gpt-5.6" || normalized.starts_with("gpt-5.6-sol") {
-        ModelPricing { input_per_million: 5.0, cached_input_per_million: Some(0.50), output_per_million: 30.0 }
+        ModelPricing { input_per_million: 4.0, cached_input_per_million: Some(0.40), output_per_million: 20.0 }
     } else if normalized.starts_with("gpt-5.5-pro") {
         ModelPricing { input_per_million: 30.0, cached_input_per_million: None, output_per_million: 180.0 }
     } else if normalized.starts_with("gpt-5.5") {
@@ -113,7 +113,7 @@ mod tests {
         by_model.insert("gpt-5.6-sol".to_owned(), ModelUsage { input: 1_000_000, total: 1_000_000, ..Default::default() });
         by_model.insert("codex-auto-review".to_owned(), ModelUsage { input: 500_000, total: 500_000, ..Default::default() });
         let result = estimate(&TokenUsage { input: 1_500_000, by_model, total: 1_500_000, ..Default::default() });
-        assert_eq!(result.value, Some(5.0));
+        assert_eq!(result.value, Some(4.0));
         assert_eq!(result.unavailable_models, vec!["codex-auto-review"]);
     }
 
@@ -126,7 +126,10 @@ mod tests {
 
     #[test]
     fn supports_current_and_legacy_codex_model_rates() {
-        assert_eq!(pricing_for("gpt-5.6-sol").unwrap().output_per_million, 30.0);
+        let sol = pricing_for("gpt-5.6-sol").unwrap();
+        assert_eq!(sol.input_per_million, 4.0);
+        assert_eq!(sol.cached_input_per_million, Some(0.4));
+        assert_eq!(sol.output_per_million, 20.0);
         assert_eq!(pricing_for("gpt-5.6-terra").unwrap().input_per_million, 2.0);
         assert_eq!(pricing_for("gpt-5.6-luna").unwrap().cached_input_per_million, Some(0.02));
         assert_eq!(pricing_for("gpt-5.4-mini").unwrap().output_per_million, 4.5);

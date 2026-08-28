@@ -1,6 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { defaultSettings, type DashboardStatus, type Settings } from "../types";
 
 declare global {
@@ -71,15 +70,15 @@ export const bridge = {
   async refresh(): Promise<DashboardStatus> {
     return isTauri() ? invoke("refresh_status") : demoStatus();
   },
-  async startLogin(): Promise<string | null> {
-    return isTauri() ? invoke("start_codex_login") : "https://chatgpt.com/";
+  async startLogin(): Promise<void> {
+    if (isTauri()) {
+      await invoke("start_codex_login");
+      return;
+    }
+    window.open("https://chatgpt.com/", "_blank", "noopener,noreferrer");
   },
-  async openExternal(url: string) {
-    if (isTauri()) return openUrl(url);
-    window.open(url, "_blank", "noopener,noreferrer");
-  },
-  async closeWindow() {
-    if (isTauri()) return getCurrentWindow().close();
+  async hideWindow() {
+    if (isTauri()) return invoke("hide_window");
     window.close();
   },
   async isWindowVisible(): Promise<boolean> {

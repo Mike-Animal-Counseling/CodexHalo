@@ -15,6 +15,35 @@ export const quotaLabel = (minutes: number) => {
   return `${minutes}M`;
 };
 
+export const quotaName = (minutes: number) => {
+  if (minutes === 300) return "5 hour";
+  if (minutes === 10080) return "Weekly";
+  if (minutes % 1440 === 0) {
+    const days = minutes / 1440;
+    return `${days} day${days === 1 ? "" : "s"}`;
+  }
+  if (minutes % 60 === 0) {
+    const hours = minutes / 60;
+    return `${hours} hour${hours === 1 ? "" : "s"}`;
+  }
+  return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+};
+
+export function primaryQuotaWindow(windows: RateLimitWindow[], preferredMinutes?: number | null) {
+  if (preferredMinutes != null) {
+    const preferred = windows.find((window) => window.durationMinutes === preferredMinutes);
+    if (preferred) return preferred;
+  }
+  return windows.reduce<RateLimitWindow | undefined>((longest, window) =>
+    !longest || window.durationMinutes > longest.durationMinutes ? window : longest, undefined);
+}
+
+export function orderedQuotaWindows(windows: RateLimitWindow[], preferredMinutes?: number | null) {
+  const primary = primaryQuotaWindow(windows, preferredMinutes);
+  if (!primary) return [];
+  return [primary, ...windows.filter((window) => window !== primary)];
+}
+
 export const compactNumber = (value: number) =>
   new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 2 }).format(value);
 

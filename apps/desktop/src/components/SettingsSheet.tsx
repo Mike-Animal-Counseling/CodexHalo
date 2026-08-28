@@ -1,4 +1,5 @@
-import type { Settings } from "../types";
+import type { RateLimitWindow, Settings } from "../types";
+import { primaryQuotaWindow, quotaLabel } from "../lib/format";
 import { BackIcon } from "./Icons";
 
 const modes: Array<{ id: Settings["visibilityMode"]; label: string; description: string }> = [
@@ -7,13 +8,17 @@ const modes: Array<{ id: Settings["visibilityMode"]; label: string; description:
   { id: "tray", label: "Tray only", description: "Restore from the tray icon." },
 ];
 
-export function SettingsSheet({ settings, onChange, onDisable, onClose }: {
+export function SettingsSheet({ settings, windows, onChange, onDisable, onClose }: {
   settings: Settings;
+  windows: RateLimitWindow[];
   onChange: (settings: Settings) => void;
   onDisable: () => void;
   onClose: () => void;
 }) {
   const update = <K extends keyof Settings>(key: K, value: Settings[K]) => onChange({ ...settings, [key]: value });
+  const quotaOptions = windows.filter((window, index) =>
+    windows.findIndex((candidate) => candidate.durationMinutes === window.durationMinutes) === index);
+  const activeQuota = primaryQuotaWindow(quotaOptions, settings.quotaWindowMinutes);
   return <section className="panel settings-sheet" role="dialog" aria-label="Settings">
       <header><h2>Settings</h2><button onClick={onClose} aria-label="Back to details"><BackIcon /></button></header>
       <p className="settings-label">Visibility</p>
@@ -30,9 +35,13 @@ export function SettingsSheet({ settings, onChange, onDisable, onClose }: {
         <nav>{(["system", "light", "dark"] as const).map((theme) => <button key={theme} className={settings.theme === theme ? "active" : ""} onClick={() => update("theme", theme)}>{theme}</button>)}</nav>
       </div>
 
-      <div className="settings-quota-focus"><strong>Primary limit</strong>
-        <nav>{(["weekly", "fiveHour"] as const).map((focus) => <button key={focus} className={settings.quotaFocus === focus ? "active" : ""} onClick={() => update("quotaFocus", focus)}>{focus === "fiveHour" ? "5H" : "Weekly"}</button>)}</nav>
-      </div>
+      {quotaOptions.length > 1 && <div className="settings-quota-focus"><strong>Primary limit</strong>
+        <nav style={{ gridTemplateColumns: `repeat(${quotaOptions.length}, minmax(0, 1fr))` }}>{quotaOptions.map((window) => <button key={window.id}
+          className={activeQuota?.durationMinutes === window.durationMinutes ? "active" : ""}
+          onClick={() => update("quotaWindowMinutes", window.durationMinutes)}>
+          {quotaLabel(window.durationMinutes)}
+        </button>)}</nav>
+      </div>}
 
       <label className="settings-startup"><strong>Startup behavior</strong>
         <select aria-label="Startup behavior" value={settings.startupBehavior}

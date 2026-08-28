@@ -1,24 +1,24 @@
 import { useRef, type MouseEvent, type PointerEvent } from "react";
 import type { CSSProperties } from "react";
-import type { DashboardStatus, QuotaFocus } from "../types";
-import { quotaTone, remaining } from "../lib/format";
+import type { DashboardStatus } from "../types";
+import { primaryQuotaWindow, quotaName, quotaTone, remaining } from "../lib/format";
 
-export function FloatingOrb({ status, refreshing, reducedMotion, quotaFocus = "weekly", dragging = false, dragEnabled = true, action = "expand", onExpand, onStartDrag }: {
+export function FloatingOrb({ status, refreshing, reducedMotion, quotaWindowMinutes, dragging = false, dragEnabled = true, action = "expand", onExpand, onStartDrag }: {
   status: DashboardStatus;
   refreshing: boolean;
   reducedMotion: boolean;
-  quotaFocus?: QuotaFocus;
+  quotaWindowMinutes?: number | null;
   dragging?: boolean;
   dragEnabled?: boolean;
   action?: "expand" | "collapse";
   onExpand: () => void;
   onStartDrag: () => Promise<boolean>;
 }) {
-  const focusedWindow = status.windows.find((item) => item.durationMinutes === (quotaFocus === "fiveHour" ? 300 : 10080));
+  const focusedWindow = primaryQuotaWindow(status.windows, quotaWindowMinutes);
   const focusedRemaining = focusedWindow ? remaining(focusedWindow) : null;
   const safe = focusedRemaining == null ? null : Math.round(focusedRemaining);
-  const quotaLabel = quotaFocus === "fiveHour" ? "5-hour" : "weekly";
-  const quotaId = quotaFocus === "fiveHour" ? "5h" : "weekly";
+  const quotaLabel = focusedWindow ? quotaName(focusedWindow.durationMinutes).toLowerCase() : "Codex";
+  const quotaId = focusedWindow?.id ?? "unavailable";
   const tone = ({ ok: "high", warn: "medium", low: "low" } as const)[quotaTone(safe)];
   const interaction = useRef(0);
 

@@ -388,18 +388,18 @@ function MainApp() {
   }, [settings.visibilityMode, settings.edgeAutoHide, dockedEdge, edgeHidden, cancelHide, reveal]);
 
   if (!ready) return <div className="boot-orbit" aria-label="Loading CodexHalo"><i /></div>;
-  if (!settings.codexEnabled) return <Onboarding onEnable={enable} onClose={() => bridge.closeWindow()} busy={status.connection === "connecting"} />;
+  if (!settings.codexEnabled) return <Onboarding onEnable={enable} onClose={() => bridge.hideWindow()} busy={status.connection === "connecting"} />;
   if (status.connection === "unauthenticated") return <main className="auth-reference">
-    <button onClick={() => bridge.closeWindow()} aria-label="Close CodexHalo"><CloseIcon /></button>
+    <button onClick={() => bridge.hideWindow()} aria-label="Hide CodexHalo"><CloseIcon /></button>
     <h2>Codex isn't connected.</h2><p>Sign in through the official Codex flow, then refresh this HUD.</p>
-    <button className="auth-reference__primary" onClick={async () => { const url = await bridge.startLogin(); if (url) await bridge.openExternal(url); }}>Sign in with Codex</button>
+    <button className="auth-reference__primary" onClick={() => void bridge.startLogin()}>Sign in with Codex</button>
     <button className="auth-reference__secondary" onClick={disable}>Disable Codex</button>
   </main>;
 
   if (!expanded) return <div className={`hud-shell hud-shell--compact ${dockedEdge ? `edge-${dockedEdge}` : ""} ${edgeHidden ? "is-edge-hidden" : ""} ${surfacePending ? "is-surface-pending" : ""}`}
-    onMouseLeave={armHideTimer}>
+    onMouseEnter={cancelHide} onMouseLeave={armHideTimer}>
     <FloatingOrb status={status} refreshing={refreshing} reducedMotion={reducedMotion} dragging={dragging}
-      quotaFocus={settings.quotaFocus}
+      quotaWindowMinutes={settings.quotaWindowMinutes}
       onExpand={() => { void openPanel(); }} onStartDrag={nativeDrag} />
     {dockedEdge && <EdgeRevealHandle edge={dockedEdge} visible={edgeHidden} onReveal={reveal} />}
   </div>;
@@ -424,18 +424,18 @@ function MainApp() {
     }}>
       <div className={`panel-frame panel-frame--join-${panelJoin} ${phase === "open" ? "is-open" : ""}`} style={{ left: activeLayout.panelX, top: activeLayout.panelY, transformOrigin }}>
         {settingsOpen
-          ? <SettingsSheet settings={settings} onChange={updateSettings} onDisable={disable} onClose={() => setSettingsOpen(false)} />
-          : <ExpandedPanel status={status} refreshing={refreshing} reducedMotion={reducedMotion} quotaFocus={settings.quotaFocus} onRefresh={refresh} onSettings={() => setSettingsOpen(true)} />}
+          ? <SettingsSheet settings={settings} windows={status.windows} onChange={updateSettings} onDisable={disable} onClose={() => setSettingsOpen(false)} />
+          : <ExpandedPanel status={status} refreshing={refreshing} reducedMotion={reducedMotion} quotaWindowMinutes={settings.quotaWindowMinutes} onRefresh={refresh} onSettings={() => setSettingsOpen(true)} />}
       </div>
       <div className={`expanded-orb expanded-orb--join-${capsuleJoin} ${phase === "open" || phase === "closing" ? "is-open" : ""} ${phase === "closing" ? "is-closing" : ""}`} style={{ left: activeLayout.orbX, top: activeLayout.orbY }}>
         <FloatingOrb status={status} refreshing={refreshing} reducedMotion={reducedMotion} dragging={dragging}
-          quotaFocus={settings.quotaFocus}
+          quotaWindowMinutes={settings.quotaWindowMinutes}
           dragEnabled={phase === "open" && !surfacePending && !surfaceReflow} action="collapse"
           onExpand={closePanel} onStartDrag={nativeDrag} />
       </div>
     </div>
     <div className="compact-surface-handoff" aria-hidden="true">
-      <FloatingOrb status={status} refreshing={refreshing} reducedMotion={reducedMotion} quotaFocus={settings.quotaFocus}
+      <FloatingOrb status={status} refreshing={refreshing} reducedMotion={reducedMotion} quotaWindowMinutes={settings.quotaWindowMinutes}
         dragEnabled={false} action="expand" onExpand={() => {}} onStartDrag={async () => false} />
     </div>
   </div>;

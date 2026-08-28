@@ -1,7 +1,6 @@
 export type ThemeMode = "system" | "light" | "dark";
 export type HudStyle = "capsule" | "halo";
 export type VisibilityMode = "always" | "autoHide" | "tray";
-export type QuotaFocus = "weekly" | "fiveHour";
 export type StartupBehavior = "off" | "startWithWindows" | "showWhenCodexStarts";
 export type ConnectionState = "disabled" | "connecting" | "ready" | "unauthenticated" | "offline" | "error";
 
@@ -55,7 +54,7 @@ export interface Settings {
   shortcut: string;
   startupBehavior: StartupBehavior;
   reducedMotion: boolean;
-  quotaFocus: QuotaFocus;
+  quotaWindowMinutes: number | null;
   surfaceVersion: number;
 }
 
@@ -73,7 +72,7 @@ export const defaultSettings: Settings = {
   shortcut: "CommandOrControl+Shift+H",
   startupBehavior: "off",
   reducedMotion: false,
-  quotaFocus: "weekly",
+  quotaWindowMinutes: null,
   surfaceVersion: 3,
 };
 

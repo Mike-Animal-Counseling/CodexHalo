@@ -1,9 +1,9 @@
 import { quotaTone } from "../lib/format";
 
-export function QuotaRing({ value, label = "Weekly", quotaId = "weekly", size = 52, stroke = 4, showCenter = true, reducedMotion = false, glow = true }: {
+export function QuotaRing({ value, label = "Quota", quotaId = "quota", size = 52, stroke = 4, showCenter = true, reducedMotion = false, glow = true }: {
   value: number | null;
   label?: string;
-  quotaId?: "weekly" | "5h";
+  quotaId?: string;
   size?: number;
   stroke?: number;
   showCenter?: boolean;

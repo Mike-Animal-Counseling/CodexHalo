@@ -6,8 +6,8 @@ import { FloatingOrb } from "./FloatingOrb";
 const status: DashboardStatus = {
   connection: "ready",
   windows: [
-    { id: "primary", durationMinutes: 300, usedPercent: 28 },
-    { id: "secondary", durationMinutes: 10080, usedPercent: 57 },
+    { id: "short", durationMinutes: 240, usedPercent: 28 },
+    { id: "long", durationMinutes: 4320, usedPercent: 57 },
   ],
   tokens: { input: 0, cachedInput: 0, output: 0, reasoning: 0, total: 0, byModel: {} },
   pricing: { unavailableModels: [], version: "test" },
@@ -18,9 +18,9 @@ describe("FloatingOrb", () => {
 
   it("keeps quota information minimal and accessible", () => {
     const { container } = render(<FloatingOrb status={status} refreshing={false} reducedMotion={false} onExpand={() => {}} onStartDrag={async () => false} />);
-    expect(screen.getByRole("button", { name: /43% weekly quota remaining/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /43% 3 days quota remaining/i })).toBeInTheDocument();
     expect(screen.queryByText(/tokens/i)).not.toBeInTheDocument();
-    const progress = container.querySelector<HTMLElement>('[data-quota="weekly"]');
+    const progress = container.querySelector<HTMLElement>('[data-quota="long"]');
     expect(progress?.style.width).toBe("43%");
     const expandedProgress = container.querySelector<HTMLElement>(".tech-capsule__expanded-progress i");
     expect(expandedProgress?.style.getPropertyValue("--quota")).toBe("43%");
@@ -101,16 +101,16 @@ describe("FloatingOrb", () => {
     await waitFor(() => expect(onExpand).toHaveBeenCalledOnce());
   });
 
-  it("renders a truthful unavailable state when weekly quota is absent", () => {
+  it("renders a truthful generic unavailable state when no quota exists", () => {
     render(<FloatingOrb status={{ ...status, windows: [] }} refreshing={false} reducedMotion={false} onExpand={() => {}} onStartDrag={async () => false} />);
-    expect(screen.getByRole("button", { name: /weekly quota unavailable/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Codex quota unavailable/i })).toBeInTheDocument();
     expect(screen.getByText("—")).toBeInTheDocument();
   });
 
   it("syncs capsule styling to the safe, warning, and critical thresholds", () => {
     const withRemaining = (remainingPercent: number): DashboardStatus => ({
       ...status,
-      windows: status.windows.map((window) => window.durationMinutes === 10080
+      windows: status.windows.map((window) => window.durationMinutes === 4320
         ? { ...window, usedPercent: 100 - remainingPercent }
         : window),
     });
@@ -122,12 +122,18 @@ describe("FloatingOrb", () => {
     expect(screen.getByRole("button")).toHaveClass("tech-capsule--low");
   });
 
-  it("uses the manually selected 5-hour window for the compact capsule", () => {
-    const { container } = render(<FloatingOrb status={status} refreshing={false} reducedMotion={false} quotaFocus="fiveHour" onExpand={() => {}} onStartDrag={async () => false} />);
-    expect(screen.getByRole("button", { name: /72% 5-hour quota remaining/i })).toBeInTheDocument();
-    expect(container.querySelector<HTMLElement>('[data-quota="5h"]')?.style.width).toBe("72%");
+  it("uses an available preferred duration for the compact capsule", () => {
+    const { container } = render(<FloatingOrb status={status} refreshing={false} reducedMotion={false} quotaWindowMinutes={240} onExpand={() => {}} onStartDrag={async () => false} />);
+    expect(screen.getByRole("button", { name: /72% 4 hours quota remaining/i })).toBeInTheDocument();
+    expect(container.querySelector<HTMLElement>('[data-quota="short"]')?.style.width).toBe("72%");
     expect(container.querySelector<HTMLElement>(".tech-capsule__expanded-progress i")?.style.getPropertyValue("--quota")).toBe("72%");
     expect(screen.getByRole("button")).toHaveClass("tech-capsule--high");
+  });
+
+  it("falls back to a real returned window when the saved duration is absent", () => {
+    render(<FloatingOrb status={{ ...status, windows: [status.windows[0]] }} refreshing={false} reducedMotion={false}
+      quotaWindowMinutes={4320} onExpand={() => {}} onStartDrag={async () => false} />);
+    expect(screen.getByRole("button", { name: /72% 4 hours quota remaining/i })).toBeInTheDocument();
   });
 
 });

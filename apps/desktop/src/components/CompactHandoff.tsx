@@ -34,7 +34,7 @@ export function CompactHandoff() {
 
   if (!payload) return null;
   return <div className="hud-shell hud-shell--compact compact-handoff-shell" aria-hidden="true">
-    <FloatingOrb status={payload.status} refreshing={payload.refreshing} reducedMotion quotaFocus={payload.settings.quotaFocus}
+    <FloatingOrb status={payload.status} refreshing={payload.refreshing} reducedMotion quotaWindowMinutes={payload.settings.quotaWindowMinutes}
       dragEnabled={false} action="expand" onExpand={() => {}} onStartDrag={async () => false} />
   </div>;
 }

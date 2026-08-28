@@ -271,16 +271,44 @@ fn normalize_windows(response: &Value) -> Vec<RateLimitWindow> {
     let snapshot = response.pointer("/rateLimitsByLimitId/codex")
         .or_else(|| response.get("rateLimits"))
         .unwrap_or(&Value::Null);
-    ["primary", "secondary"].into_iter().filter_map(|id| {
-        let value = snapshot.get(id)?;
+    let limit_id = snapshot
+        .get("limitId")
+        .and_then(Value::as_str)
+        .unwrap_or("codex");
+    let Some(fields) = snapshot.as_object() else {
+        return Vec::new();
+    };
+    let mut candidates = fields
+        .iter()
+        .filter(|(_, value)| value.get("windowDurationMins").is_some())
+        .collect::<Vec<_>>();
+    candidates.sort_by(|(left, _), (right, _)| {
+        window_priority(left)
+            .cmp(&window_priority(right))
+            .then_with(|| left.cmp(right))
+    });
+
+    candidates.into_iter().filter_map(|(key, value)| {
         let duration = value.get("windowDurationMins").and_then(Value::as_u64)?;
+        let used_percent = value.get("usedPercent").and_then(Value::as_f64)?;
+        if duration == 0 || !used_percent.is_finite() {
+            return None;
+        }
         Some(RateLimitWindow {
-            id: format!("{}-{duration}", snapshot.get("limitId").and_then(Value::as_str).unwrap_or(id)),
+            id: format!("{limit_id}-{key}-{duration}"),
             duration_minutes: duration,
-            used_percent: value.get("usedPercent").and_then(Value::as_u64).unwrap_or(0).min(100) as u8,
+            used_percent: used_percent.clamp(0.0, 100.0).round() as u8,
             resets_at: value.get("resetsAt").and_then(Value::as_i64),
         })
     }).collect()
+}
+
+fn window_priority(key: &str) -> u8 {
+    match key {
+        "primary" => 0,
+        "secondary" => 1,
+        _ => 2,
+    }
 }
 
 #[cfg(test)]
@@ -291,11 +319,28 @@ mod tests {
         let source = json!({ "rateLimits": {
             "limitId": "codex",
             "primary": { "usedPercent": 28, "windowDurationMins": 300, "resetsAt": 10 },
-            "secondary": { "usedPercent": 57, "windowDurationMins": 10080, "resetsAt": 20 }
+            "secondary": { "usedPercent": 57, "windowDurationMins": 10080, "resetsAt": 20 },
+            "burst": { "usedPercent": 12.4, "windowDurationMins": 60, "resetsAt": 30 },
+            "missingUsage": { "windowDurationMins": 1440, "resetsAt": 40 },
+            "metadata": { "usedPercent": 99 }
         }});
         let windows = normalize_windows(&source);
+        assert_eq!(windows.len(), 3);
         assert_eq!(windows[0].remaining_percent(), 72);
         assert_eq!(windows[1].duration_minutes, 10080);
+        assert_eq!(windows[2].id, "codex-burst-60");
+        assert_eq!(windows[2].used_percent, 12);
+    }
+
+    #[test]
+    fn invalid_or_missing_usage_is_not_reported_as_fully_available() {
+        let source = json!({ "rateLimits": {
+            "limitId": "codex",
+            "primary": { "windowDurationMins": 300 },
+            "secondary": { "usedPercent": "unknown", "windowDurationMins": 10080 },
+            "zero": { "usedPercent": 20, "windowDurationMins": 0 }
+        }});
+        assert!(normalize_windows(&source).is_empty());
     }
 
     #[cfg(windows)]

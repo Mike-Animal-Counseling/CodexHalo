@@ -11,10 +11,6 @@ pub enum HudStyle { Capsule, Halo }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub enum QuotaFocus { Weekly, FiveHour }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub enum StartupBehavior { Off, StartWithWindows, ShowWhenCodexStarts }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -44,7 +40,7 @@ pub struct Settings {
     pub shortcut: String,
     pub startup_behavior: StartupBehavior,
     pub reduced_motion: bool,
-    pub quota_focus: QuotaFocus,
+    pub quota_window_minutes: Option<u64>,
     pub window_position: Option<WindowPosition>,
     pub surface_version: u8,
 }
@@ -65,7 +61,7 @@ impl Default for Settings {
             shortcut: "CommandOrControl+Shift+H".into(),
             startup_behavior: StartupBehavior::Off,
             reduced_motion: false,
-            quota_focus: QuotaFocus::Weekly,
+            quota_window_minutes: None,
             window_position: None,
             surface_version: 3,
         }
@@ -105,6 +101,16 @@ fn decode_settings(bytes: &[u8]) -> Settings {
     }) {
         settings.startup_behavior = StartupBehavior::StartWithWindows;
     }
+    if stored.as_ref().is_some_and(|value| value.get("quotaWindowMinutes").is_none()) {
+        settings.quota_window_minutes = stored.as_ref()
+            .and_then(|value| value.get("quotaFocus"))
+            .and_then(serde_json::Value::as_str)
+            .and_then(|focus| match focus {
+                "weekly" => Some(10_080),
+                "fiveHour" => Some(300),
+                _ => None,
+            });
+    }
     if stored_surface_version < 2 {
         settings.hud_style = HudStyle::Halo;
     }
@@ -123,7 +129,7 @@ mod tests {
         let decoded: Settings = serde_json::from_str(&encoded).unwrap();
         assert!(!decoded.codex_enabled);
         assert_eq!(decoded.hud_style, HudStyle::Halo);
-        assert_eq!(decoded.quota_focus, QuotaFocus::Weekly);
+        assert_eq!(decoded.quota_window_minutes, None);
         assert_eq!(decoded.startup_behavior, StartupBehavior::Off);
     }
 
@@ -131,7 +137,7 @@ mod tests {
     fn legacy_capsule_settings_migrate_to_the_orb_surface() {
         let settings = decode_settings(br#"{"codexEnabled":true,"hudStyle":"capsule"}"#);
         assert_eq!(settings.hud_style, HudStyle::Halo);
-        assert_eq!(settings.quota_focus, QuotaFocus::Weekly);
+        assert_eq!(settings.quota_window_minutes, None);
         assert_eq!(settings.surface_version, 2);
     }
 
@@ -139,5 +145,25 @@ mod tests {
     fn legacy_launch_at_login_migrates_to_start_with_windows() {
         let settings = decode_settings(br#"{"launchAtLogin":true,"surfaceVersion":3}"#);
         assert_eq!(settings.startup_behavior, StartupBehavior::StartWithWindows);
+    }
+
+    #[test]
+    fn legacy_quota_focus_migrates_to_a_duration_preference() {
+        let weekly = decode_settings(br#"{"quotaFocus":"weekly","surfaceVersion":3}"#);
+        let five_hour = decode_settings(br#"{"quotaFocus":"fiveHour","surfaceVersion":3}"#);
+        assert_eq!(weekly.quota_window_minutes, Some(10_080));
+        assert_eq!(five_hour.quota_window_minutes, Some(300));
+    }
+
+    #[test]
+    fn dynamic_quota_duration_round_trips_without_a_known_window_enum() {
+        let settings = Settings {
+            quota_window_minutes: Some(240),
+            ..Settings::default()
+        };
+        let encoded = serde_json::to_string(&settings).unwrap();
+        assert!(encoded.contains(r#""quotaWindowMinutes":240"#));
+        let decoded: Settings = serde_json::from_str(&encoded).unwrap();
+        assert_eq!(decoded.quota_window_minutes, Some(240));
     }
 }
