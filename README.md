@@ -1,7 +1,7 @@
 <div align="center">
   <img src="apps/desktop/src-tauri/icons/128x128.png" width="80" height="80" alt="CodexHalo">
   <h1>CodexHalo</h1>
-  <p>A quiet, floating view of your Codex limits and local token usage.</p>
+  <p>Your Codex limits, quietly in sight.</p>
   <p>
     <a href="https://github.com/Mike-Animal-Counseling/CodexHalo/releases/download/v1.0.0/CodexHalo_1.0.0_x64-setup.exe"><strong>Download</strong></a>
   </p>
@@ -9,48 +9,34 @@
   <img src="docs/assets/codexhalo-preview.svg" width="900" alt="CodexHalo capsule expanding into its usage panel">
 </div>
 
-## At a glance
+## Simple by design
 
-- See your 5-hour and weekly limits.
-- Review today's tokens and model usage.
+CodexHalo is a lightweight Windows companion for Codex. It stays in a small
+floating capsule and opens into a focused usage view when you want more detail.
+
+- Track your 5-hour and weekly limits with reset times.
+- See today's tokens, model usage, and estimated API value.
 - Drag it anywhere, snap it to an edge, or restore it from the tray.
+
+Works with Codex in VS Code and the official Codex CLI.
 
 ## Install
 
-Download the installer, run it, then enable Codex access when you are ready.
+Download the installer, open CodexHalo, and enable Codex access when you are
+ready.
 
-> Windows x64 only. v1.0.0 is unsigned, so SmartScreen may show a warning.
+Windows 10/11 (x64). This release is unsigned, so Windows may show a
+SmartScreen warning.
 
-<details>
-<summary>Verify the download</summary>
+**SHA-256**
 
-<pre>CodexHalo_1.0.0_x64-setup.exe
-SHA-256: 27A35F79FAC9E0B938E6669D0039E87D9D36CE8A8A81D2A86AE59572EBC903F5</pre>
-
-</details>
+<code>27A35F79FAC9E0B938E6669D0039E87D9D36CE8A8A81D2A86AE59572EBC903F5</code>
 
 ## Private by default
 
-Codex access is off until you enable it. CodexHalo processes supported usage
-data locally, sends no telemetry, and never reads browser cookies, passwords,
-terminal history, or unrelated workspaces.
-
-<details>
-<summary>Compatibility and build from source</summary>
-
-CodexHalo supports 64-bit Windows 10 and Windows 11, the official Codex CLI,
-and Codex clients that use the same local session infrastructure. WebView2 is
-required and is included with most current Windows installations.
-
-~~~powershell
-npm ci
-npm test
-npm run build
-cargo test --workspace --locked
-npm run release:windows
-~~~
-
-</details>
+Your Codex data stays on your computer. Access is off until you choose to
+enable it. CodexHalo does not upload your prompts or usage data and has no
+telemetry.
 
 CodexHalo is an independent community utility, not an official OpenAI product.
 Released under the [MIT License](LICENSE).
