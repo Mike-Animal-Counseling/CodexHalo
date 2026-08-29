@@ -1,6 +1,6 @@
 use std::{env, path::PathBuf};
 use chrono::Utc;
-use codexhalo_codex_client::{read_quota, QuotaRead};
+use codexhalo_codex_client::{read_quota, CodexClientError, QuotaRead};
 use codexhalo_pricing::{estimate, PricingEstimate};
 use codexhalo_shared::{RateLimitWindow, TokenUsage};
 use serde::{Deserialize, Serialize};
@@ -20,7 +20,7 @@ pub struct DashboardStatus {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
-pub enum ConnectionState { Disabled, Connecting, Ready, Unauthenticated, Offline, Error }
+pub enum ConnectionState { Disabled, Connecting, Ready, Disconnected, Unauthenticated, Offline, Error }
 
 impl DashboardStatus {
     pub fn disabled() -> Self {
@@ -45,10 +45,31 @@ fn codex_home() -> Result<PathBuf, String> {
         .ok_or_else(|| "Could not determine the Codex data directory".to_owned())
 }
 
+fn disconnected_status() -> DashboardStatus {
+    DashboardStatus {
+        connection: ConnectionState::Disconnected,
+        windows: Vec::new(),
+        tokens: TokenUsage::default(),
+        pricing: estimate(&TokenUsage::default()),
+        updated_at: None,
+        message: Some("Codex isn't connected yet".into()),
+    }
+}
+
+fn quota_error_status(error: CodexClientError) -> Result<DashboardStatus, String> {
+    match error {
+        CodexClientError::NotFound => Ok(disconnected_status()),
+        other => Err(other.to_string()),
+    }
+}
+
 pub async fn refresh(enabled: bool) -> Result<DashboardStatus, String> {
     // This gate intentionally precedes path discovery, process launch, and every Codex read.
     require_enabled(enabled)?;
-    let quota = read_quota().await.map_err(|error| error.to_string())?;
+    let quota = match read_quota().await {
+        Ok(quota) => quota,
+        Err(error) => return quota_error_status(error),
+    };
     let windows = match quota {
         QuotaRead::Unauthenticated => {
             return Ok(DashboardStatus {
@@ -88,5 +109,19 @@ mod tests {
         });
         assert!(result.is_err());
         assert_eq!(ACCESSES.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn missing_codex_is_a_normal_disconnected_state() {
+        let status = quota_error_status(CodexClientError::NotFound).unwrap();
+        assert!(matches!(status.connection, ConnectionState::Disconnected));
+        assert!(status.windows.is_empty());
+        assert_eq!(status.tokens.total, 0);
+    }
+
+    #[test]
+    fn operational_quota_failures_remain_errors() {
+        let error = quota_error_status(CodexClientError::Timeout).unwrap_err();
+        assert!(error.contains("timed out"));
     }
 }

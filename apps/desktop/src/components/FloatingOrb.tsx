@@ -2,6 +2,7 @@ import { useRef, type MouseEvent, type PointerEvent } from "react";
 import type { CSSProperties } from "react";
 import type { DashboardStatus } from "../types";
 import { primaryQuotaWindow, quotaName, quotaTone, remaining } from "../lib/format";
+import { dashboardViewState } from "../lib/viewState";
 
 export function FloatingOrb({ status, refreshing, reducedMotion, quotaWindowMinutes, dragging = false, dragEnabled = true, action = "expand", onExpand, onStartDrag }: {
   status: DashboardStatus;
@@ -20,6 +21,19 @@ export function FloatingOrb({ status, refreshing, reducedMotion, quotaWindowMinu
   const quotaLabel = focusedWindow ? quotaName(focusedWindow.durationMinutes).toLowerCase() : "Codex";
   const quotaId = focusedWindow?.id ?? "unavailable";
   const tone = ({ ok: "high", warn: "medium", low: "low" } as const)[quotaTone(safe)];
+  const viewState = dashboardViewState(status);
+  const stateLabel = viewState === "disconnected" ? "CONNECT"
+    : viewState === "connecting" ? "CHECKING"
+    : viewState === "error" ? "RETRY"
+    : "NO DATA";
+  const stateClass = viewState === "disconnected" ? "is-disconnected"
+    : viewState === "connecting" ? "is-connecting"
+    : viewState === "error" ? "is-error"
+    : "is-empty";
+  const stateDescription = viewState === "disconnected" ? "Codex isn't connected yet"
+    : viewState === "connecting" ? "Checking the Codex connection"
+    : viewState === "error" ? "Codex could not be refreshed"
+    : "Codex quota is not available yet";
   const interaction = useRef(0);
 
   const pointerDown = (event: PointerEvent<HTMLButtonElement>) => {
@@ -70,17 +84,19 @@ export function FloatingOrb({ status, refreshing, reducedMotion, quotaWindowMinu
     if (event.detail === 0 && dragEnabled) onExpand();
   };
 
-  return <button className={`floating-orb tech-capsule tech-capsule--${tone} ${refreshing ? "is-refreshing" : ""} ${dragging ? "is-dragging" : ""}`}
+  return <button className={`floating-orb tech-capsule tech-capsule--${tone} ${safe == null ? stateClass : ""} ${refreshing ? "is-refreshing" : ""} ${dragging ? "is-dragging" : ""}`}
     onPointerDown={pointerDown}
     onClick={activate}
-    aria-label={`CodexHalo — ${focusedRemaining == null ? `${quotaLabel} quota unavailable` : `${Math.round(focusedRemaining)}% ${quotaLabel} quota remaining`}. Click to ${action}.`}>
+    aria-label={`CodexHalo - ${focusedRemaining == null ? stateDescription : `${Math.round(focusedRemaining)}% ${quotaLabel} quota remaining`}. Click to ${action}.`}>
     <span className="floating-orb__surface" aria-hidden="true" />
     <span className="tech-capsule__status" aria-hidden="true" />
     <span className="tech-capsule__brand">CODEX</span>
-    <span className="tech-capsule__track"><i data-quota={quotaId} style={{ width: `${safe ?? 0}%`, transition: reducedMotion ? "none" : undefined }} /></span>
-    <span className="tech-capsule__expanded-progress" aria-hidden="true">
-      <span><i style={{ "--quota": `${safe ?? 0}%`, transition: reducedMotion ? "none" : undefined } as CSSProperties} /></span>
-    </span>
-    <span className="tech-capsule__value">{safe == null ? "—" : safe}<small>{safe == null ? "" : "%"}</small></span>
+    {safe == null ? <span className="tech-capsule__state">{stateLabel}</span> : <>
+      <span className="tech-capsule__track"><i data-quota={quotaId} style={{ width: `${safe}%`, transition: reducedMotion ? "none" : undefined }} /></span>
+      <span className="tech-capsule__expanded-progress" aria-hidden="true">
+        <span><i style={{ "--quota": `${safe}%`, transition: reducedMotion ? "none" : undefined } as CSSProperties} /></span>
+      </span>
+      <span className="tech-capsule__value">{safe}<small>%</small></span>
+    </>}
   </button>;
 }

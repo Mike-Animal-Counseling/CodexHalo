@@ -76,6 +76,35 @@ describe("ExpandedPanel quota windows", () => {
     expect(container.querySelectorAll(".quota-stack > .quota-row")).toHaveLength(0);
   });
 
+  it("renders a calm disconnected state without phantom quota or token metrics", () => {
+    const disconnected: DashboardStatus = {
+      connection: "disconnected",
+      windows: [],
+      tokens: { input: 0, cachedInput: 0, output: 0, reasoning: 0, total: 0, byModel: {} },
+      pricing: { value: 0, unavailableModels: [], version: "test" },
+    };
+    const { container } = render(<ExpandedPanel status={disconnected} refreshing={false} reducedMotion={false} onRefresh={vi.fn()} onSettings={vi.fn()} />);
+    expect(screen.getByText("Codex isn't connected yet")).toBeInTheDocument();
+    expect(screen.getByText("Open or sign in to Codex to view quota and usage.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Check again" })).toBeInTheDocument();
+    expect(container.querySelector(".quota-stack")).not.toBeInTheDocument();
+    expect(screen.queryByText("Today")).not.toBeInTheDocument();
+  });
+
+  it("keeps operational failures distinct from a disconnected Codex install", () => {
+    const failed: DashboardStatus = {
+      connection: "error",
+      windows: [],
+      tokens: { input: 0, cachedInput: 0, output: 0, reasoning: 0, total: 0, byModel: {} },
+      pricing: { value: 0, unavailableModels: [], version: "test" },
+      message: "protocol failure",
+    };
+    render(<ExpandedPanel status={failed} refreshing={false} reducedMotion={false} onRefresh={vi.fn()} onSettings={vi.fn()} />);
+    expect(screen.getByText("Couldn't refresh Codex")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+    expect(screen.queryByText("Codex isn't connected yet")).not.toBeInTheDocument();
+  });
+
   it("displays an unknown future model ID and excludes it from the priced subtotal", () => {
     const futureStatus: DashboardStatus = {
       ...status,

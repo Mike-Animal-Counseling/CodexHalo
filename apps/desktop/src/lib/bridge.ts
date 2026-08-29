@@ -103,6 +103,9 @@ export const bridge = {
     if (!isTauri()) return { orbX: 0, orbY: 0, panelX: 0, panelY: 31, placement: "below", edge: null };
     return invoke<SurfaceLayout>("commit_compact_surface", { status, refreshing });
   },
+  async finishCompactHandoff(): Promise<void> {
+    if (isTauri()) await invoke("finish_compact_handoff");
+  },
   async setEdgeRetracted(retracted: boolean, edge: DockEdge | null, animate: boolean): Promise<SettledOrb | null> {
     if (!isTauri()) return null;
     return invoke<SettledOrb>("set_orb_retracted", { retracted, edge, animate });

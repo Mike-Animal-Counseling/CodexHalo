@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { DashboardStatus, RateLimitWindow } from "../types";
 import { compactNumber, currency, freshness, orderedQuotaWindows, quotaName, quotaTone, remaining, timeUntil } from "../lib/format";
+import { dashboardViewState, type DashboardViewState } from "../lib/viewState";
 import { InfoIcon, RefreshIcon, SlidersIcon } from "./Icons";
 import { QuotaRing } from "./QuotaRing";
 
@@ -29,6 +30,43 @@ function QuotaWindowRow({ window, reducedMotion, secondary = false }: {
   </section>;
 }
 
+function ConnectionStatePanel({ viewState, refreshing, onRefresh, onSettings }: {
+  viewState: Extract<DashboardViewState, "connecting" | "disconnected" | "error">;
+  refreshing: boolean;
+  onRefresh: () => void;
+  onSettings: () => void;
+}) {
+  const connecting = viewState === "connecting";
+  const disconnected = viewState === "disconnected";
+  const title = connecting ? "Connecting to Codex"
+    : disconnected ? "Codex isn't connected yet"
+    : "Couldn't refresh Codex";
+  const copy = connecting ? "Checking quota and local usage."
+    : disconnected ? "Open or sign in to Codex to view quota and usage."
+    : "Check your Codex connection, then try again.";
+  const action = refreshing || connecting ? "Checking..." : disconnected ? "Check again" : "Try again";
+
+  return <main className={`panel panel--connection panel--connection-${viewState}`} role="dialog" aria-label="CodexHalo connection status">
+    <header className="panel-header panel-header--connection">
+      <div className="panel-identity"><div><strong>CodexHalo</strong><i className={`connection-dot connection-dot--${viewState}`} /></div>
+        <span>{connecting ? "Checking connection" : disconnected ? "Waiting for Codex" : "Refresh needed"}</span></div>
+      <nav>
+        <button className={refreshing ? "panel-icon is-spinning" : "panel-icon"} onClick={onRefresh}
+          disabled={refreshing || connecting} aria-label="Refresh Codex data"><RefreshIcon size={14} /></button>
+        <button className="panel-icon" onClick={onSettings} aria-label="Settings"><SlidersIcon size={14} /></button>
+      </nav>
+    </header>
+    <section className="connection-state">
+      <div className="connection-state__halo" aria-hidden="true"><i /></div>
+      <h2>{title}</h2>
+      <p>{copy}</p>
+      <button className="connection-state__action" onClick={onRefresh} disabled={refreshing || connecting}>
+        <RefreshIcon size={13} />{action}
+      </button>
+    </section>
+  </main>;
+}
+
 export function ExpandedPanel({ status, refreshing, reducedMotion, quotaWindowMinutes, onRefresh, onSettings }: {
   status: DashboardStatus;
   refreshing: boolean;
@@ -38,6 +76,10 @@ export function ExpandedPanel({ status, refreshing, reducedMotion, quotaWindowMi
   onSettings: () => void;
 }) {
   const [showTip, setShowTip] = useState(false);
+  const viewState = dashboardViewState(status);
+  if (viewState === "connecting" || viewState === "disconnected" || viewState === "error") {
+    return <ConnectionStatePanel viewState={viewState} refreshing={refreshing} onRefresh={onRefresh} onSettings={onSettings} />;
+  }
   const quotaWindows = orderedQuotaWindows(status.windows, quotaWindowMinutes);
   const focusedWindow = quotaWindows[0];
   const focusedRemaining = focusedWindow ? Math.round(remaining(focusedWindow)) : null;

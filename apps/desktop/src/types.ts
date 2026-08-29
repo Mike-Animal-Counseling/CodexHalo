@@ -2,7 +2,7 @@ export type ThemeMode = "system" | "light" | "dark";
 export type HudStyle = "capsule" | "halo";
 export type VisibilityMode = "always" | "autoHide" | "tray";
 export type StartupBehavior = "off" | "startWithWindows" | "showWhenCodexStarts";
-export type ConnectionState = "disabled" | "connecting" | "ready" | "unauthenticated" | "offline" | "error";
+export type ConnectionState = "disabled" | "connecting" | "ready" | "disconnected" | "unauthenticated" | "offline" | "error";
 
 export interface RateLimitWindow {
   id: string;

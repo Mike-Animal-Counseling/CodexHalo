@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use settings::{Settings, SettingsStore, StartupBehavior, VisibilityMode, WindowPosition};
 use status::{ConnectionState, DashboardStatus};
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::utils::config::Color;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri_plugin_autostart::ManagerExt as AutostartExt;
@@ -406,10 +407,10 @@ async fn drag_orb(window: WebviewWindow, state: State<'_, AppState>) -> Result<D
     Ok(DragOutcome { moved: true, settled: Some(settled), layout })
 }
 
-#[tauri::command]
-async fn set_window_surface(window: WebviewWindow, state: State<'_, AppState>, surface: WindowSurface) -> Result<SurfaceLayout, String> {
+async fn set_window_surface_inner(window: &WebviewWindow, state: &AppState, requested_surface: Option<WindowSurface>) -> Result<SurfaceLayout, String> {
     let _geometry = state.geometry.lock().await;
     let current_surface = *state.surface.lock().map_err(|error| error.to_string())?;
+    let surface = requested_surface.unwrap_or(current_surface);
     let scale = window.scale_factor().map_err(|error| error.to_string())?;
     if state.retracted.lock().map_err(|error| error.to_string())?.take().is_some() {
         if let Some(anchor) = *state.orb_position.lock().map_err(|error| error.to_string())? {
@@ -420,18 +421,8 @@ async fn set_window_surface(window: WebviewWindow, state: State<'_, AppState>, s
     let (default_width, default_height) = physical_dimensions(surface, scale);
     let current = WindowPosition { x: current_position.x, y: current_position.y };
 
-    if current_surface == surface {
-        let mut layout = *state.surface_layout.lock().map_err(|error| error.to_string())?;
-        if surface == WindowSurface::Compact {
-            let size = window.outer_size().map_err(|error| error.to_string())?;
-            let bounds = display_for_point(&window, current.x + size.width as i32 / 2, current.y + size.height as i32 / 2)?;
-            layout.edge = free_position(current, size.width as i32, size.height as i32, bounds).1;
-        }
-        return Ok(layout);
-    }
-
     if current_surface == WindowSurface::Compact && surface != WindowSurface::Compact {
-        persist_orb_position(state.inner(), current)?;
+        persist_orb_position(state, current)?;
     }
 
     let saved_orb = *state.orb_position.lock().map_err(|error| error.to_string())?;
@@ -463,9 +454,14 @@ async fn set_window_surface(window: WebviewWindow, state: State<'_, AppState>, s
     *state.surface_layout.lock().map_err(|error| error.to_string())? = layout;
     *state.surface.lock().map_err(|error| error.to_string())? = surface;
     if surface == WindowSurface::Compact {
-        persist_orb_position(state.inner(), target)?;
+        persist_orb_position(state, target)?;
     }
     Ok(layout)
+}
+
+#[tauri::command]
+async fn set_window_surface(window: WebviewWindow, state: State<'_, AppState>, surface: WindowSurface) -> Result<SurfaceLayout, String> {
+    set_window_surface_inner(&window, state.inner(), Some(surface)).await
 }
 
 async fn move_native_window(window: &WebviewWindow, from: WindowPosition, to: WindowPosition, animate: bool) -> Result<(), String> {
@@ -583,14 +579,18 @@ async fn commit_compact_surface(
     }
 
     set_native_window_rect(&window, target, width, height)?;
-    if let Some(handoff) = handoff {
-        sleep(Duration::from_millis(50)).await;
-        handoff.hide().map_err(|error| error.to_string())?;
-    }
     *state.surface_layout.lock().map_err(|error| error.to_string())? = compact_layout;
     *state.surface.lock().map_err(|error| error.to_string())? = WindowSurface::Compact;
     persist_orb_position(state.inner(), target)?;
     Ok(compact_layout)
+}
+
+#[tauri::command]
+fn finish_compact_handoff(window: WebviewWindow) -> Result<(), String> {
+    if let Some(handoff) = window.app_handle().get_webview_window("compact-handoff") {
+        handoff.hide().map_err(|error| error.to_string())?;
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -721,12 +721,16 @@ fn start_codex_login(state: State<'_, AppState>) -> Result<Option<String>, Strin
 }
 
 fn show_window(app: &tauri::AppHandle) {
-    if let Some(window) = app.get_webview_window("main") {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let Some(window) = app.get_webview_window("main") else { return };
+        let state = app.state::<AppState>();
+        let _ = set_window_surface_inner(&window, state.inner(), None).await;
         let _ = window.set_ignore_cursor_events(false);
         let _ = window.show();
         let _ = window.set_focus();
         let _ = app.emit("halo://reveal", ());
-    }
+    });
 }
 
 fn requires_autostart(behavior: StartupBehavior) -> bool {
@@ -843,6 +847,7 @@ pub fn run() {
             }
             let shortcut = settings.shortcut.clone();
             if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_background_color(Some(Color(0, 0, 0, 0)));
                 let _ = window.set_always_on_top(settings.always_on_top);
                 restore_position(&window, settings.window_position.clone());
                 if autostart_launch && settings.startup_behavior == StartupBehavior::ShowWhenCodexStarts {
@@ -872,6 +877,7 @@ pub fn run() {
             .min_inner_size(COMPACT_WIDTH, COMPACT_HEIGHT)
             .decorations(false)
             .transparent(true)
+            .background_color(Color(0, 0, 0, 0))
             .always_on_top(true)
             .resizable(false)
             .skip_taskbar(true)
@@ -889,7 +895,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_settings, hide_window, set_settings, set_codex_enabled, refresh_status,
             start_codex_login, set_window_surface, set_orb_retracted, apply_expanded_layout,
-            commit_compact_surface, drag_orb
+            commit_compact_surface, finish_compact_handoff, drag_orb
         ])
         .run(tauri::generate_context!())
         .expect("failed to run CodexHalo");
@@ -1063,6 +1069,12 @@ mod geometry_tests {
 
     #[test]
     fn onboarding_restore_uses_the_current_surface_dimensions() {
+        assert_eq!(physical_dimensions(WindowSurface::Onboarding, 1.0), (404, 620));
+        assert_eq!(physical_dimensions(WindowSurface::Compact, 1.0), (148, 32));
+        assert_ne!(
+            physical_dimensions(WindowSurface::Onboarding, 1.25),
+            physical_dimensions(WindowSurface::Compact, 1.25),
+        );
         let compact_anchor = WindowPosition { x: 1772, y: 1048 };
         let restored = clamp_position(compact_anchor, 404, 620, DISPLAY);
         assert_eq!(restored, WindowPosition { x: 1516, y: 460 });

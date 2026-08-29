@@ -10,6 +10,7 @@ import { SettingsSheet } from "./components/SettingsSheet";
 import { Onboarding } from "./components/Onboarding";
 import { CompactHandoff } from "./components/CompactHandoff";
 import { CloseIcon } from "./components/Icons";
+import { completeCompactTransition } from "./lib/compactTransition";
 import "./styles.css";
 
 const disabledStatus: DashboardStatus = {
@@ -223,10 +224,15 @@ function MainApp() {
     setSettingsOpen(false); setPhase("closing");
     closeTimer.current = window.setTimeout(async () => {
       try {
-        const compact = await bridge.commitCompactSurface(status, refreshing);
+        const compact = await completeCompactTransition({
+          commitCompact: () => bridge.commitCompactSurface(status, refreshing),
+          showCompact: () => setPhase("closed"),
+          afterCompactPaint: afterNextPaint,
+          finishHandoff: bridge.finishCompactHandoff,
+        });
         if (compact?.edge !== undefined) setDockedEdge(compact.edge ?? undefined);
-        setPhase("closed");
       } catch {
+        void bridge.finishCompactHandoff();
         setSurfacePending(true);
         try {
           const restored = await bridge.applyExpandedLayout(false);
@@ -391,7 +397,7 @@ function MainApp() {
   if (!settings.codexEnabled) return <Onboarding onEnable={enable} onClose={() => bridge.hideWindow()} busy={status.connection === "connecting"} />;
   if (status.connection === "unauthenticated") return <main className="auth-reference">
     <button onClick={() => bridge.hideWindow()} aria-label="Hide CodexHalo"><CloseIcon /></button>
-    <h2>Codex isn't connected.</h2><p>Sign in through the official Codex flow, then refresh this HUD.</p>
+    <h2>Codex isn't connected yet</h2><p>Connect Codex to view quota and usage.</p>
     <button className="auth-reference__primary" onClick={() => void bridge.startLogin()}>Sign in with Codex</button>
     <button className="auth-reference__secondary" onClick={disable}>Disable Codex</button>
   </main>;

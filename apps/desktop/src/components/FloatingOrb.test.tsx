@@ -103,8 +103,16 @@ describe("FloatingOrb", () => {
 
   it("renders a truthful generic unavailable state when no quota exists", () => {
     render(<FloatingOrb status={{ ...status, windows: [] }} refreshing={false} reducedMotion={false} onExpand={() => {}} onStartDrag={async () => false} />);
-    expect(screen.getByRole("button", { name: /Codex quota unavailable/i })).toBeInTheDocument();
-    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Codex quota is not available yet/i })).toBeInTheDocument();
+    expect(screen.getByText("NO DATA")).toBeInTheDocument();
+  });
+
+  it("renders a calm disconnected capsule without a phantom quota track", () => {
+    const { container } = render(<FloatingOrb status={{ ...status, connection: "disconnected", windows: [] }}
+      refreshing={false} reducedMotion={false} onExpand={() => {}} onStartDrag={async () => false} />);
+    expect(screen.getByRole("button", { name: /Codex isn't connected yet/i })).toHaveClass("is-disconnected");
+    expect(screen.getByText("CONNECT")).toBeInTheDocument();
+    expect(container.querySelector(".tech-capsule__track")).not.toBeInTheDocument();
   });
 
   it("syncs capsule styling to the safe, warning, and critical thresholds", () => {
