@@ -6,7 +6,7 @@
     <a href="https://github.com/Mike-Animal-Counseling/CodexHalo/releases/download/v1.0.0/CodexHalo_1.0.0_x64-setup.exe"><strong>Download</strong></a>
   </p>
   <br>
-  <img src="docs/assets/codexhalo-preview.png" width="900" alt="CodexHalo collapsed capsule and expanded usage panel">
+  <img src="docs/assets/codexhalo-preview.svg" width="900" alt="CodexHalo capsule expanding into its usage panel">
 </div>
 
 ## At a glance
