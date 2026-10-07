@@ -1,0 +1,488 @@
+{
+  "schemaVersion": 1,
+  "version": "2026-10-05",
+  "publishedAt": "2026-10-05",
+  "currency": "USD",
+  "pricingMode": "standard",
+  "sourceUrl": "https://developers.openai.com/api/docs/pricing",
+  "models": [
+    {
+      "id": "babbage-002",
+      "rates": {
+        "inputPerMillion": 0.4,
+        "cachedInputPerMillion": null,
+        "outputPerMillion": 0.4
+      }
+    },
+    {
+      "id": "codex-mini-latest",
+      "rates": {
+        "inputPerMillion": 1.5,
+        "cachedInputPerMillion": 0.375,
+        "outputPerMillion": 6
+      }
+    },
+    {
+      "id": "davinci-002",
+      "rates": {
+        "inputPerMillion": 2,
+        "cachedInputPerMillion": null,
+        "outputPerMillion": 2
+      }
+    },
+    {
+      "id": "gpt-3.5-turbo",
+      "rates": {
+        "inputPerMillion": 0.5,
+        "cachedInputPerMillion": null,
+        "outputPerMillion": 1.5
+      }
+    },
+    {
+      "id": "gpt-3.5-turbo-0125",
+      "rates": {
+        "inputPerMillion": 0.5,
+        "cachedInputPerMillion": null,
+        "outputPerMillion": 1.5
+      }
+    },
+    {
+      "id": "gpt-3.5-turbo-1106",
+      "rates": {
+        "inputPerMillion": 1,
+        "cachedInputPerMillion": null,
+        "outputPerMillion": 2
+      }
+    },
+    {
+      "id": "gpt-3.5-turbo-instruct",
+      "rates": {
+        "inputPerMillion": 1.5,
+        "cachedInputPerMillion": null,
+        "outputPerMillion": 2
+      }
+    },
+    {
+      "id": "gpt-4-0613",
+      "rates": {
+        "inputPerMillion": 30,
+        "cachedInputPerMillion": null,
+        "outputPerMillion": 60
+      }
+    },
+    {
+      "id": "gpt-4-turbo-2024-04-09",
+      "rates": {
+        "inputPerMillion": 10,
+        "cachedInputPerMillion": null,
+        "outputPerMillion": 30
+      }
+    },
+    {
+      "id": "gpt-4.1",
+      "rates": {
+        "inputPerMillion": 2,
+        "cachedInputPerMillion": 0.5,
+        "outputPerMillion": 8
+      }
+    },
+    {
+      "id": "gpt-4.1-mini",
+      "rates": {
+        "inputPerMillion": 0.4,
+        "cachedInputPerMillion": 0.1,
+        "outputPerMillion": 1.6
+      }
+    },
+    {
+      "id": "gpt-4.1-nano",
+      "rates": {
+        "inputPerMillion": 0.1,
+        "cachedInputPerMillion": 0.025,
+        "outputPerMillion": 0.4
+      }
+    },
+    {
+      "id": "gpt-4o",
+      "rates": {
+        "inputPerMillion": 2.5,
+        "cachedInputPerMillion": 1.25,
+        "outputPerMillion": 10
+      }
+    },
+    {
+      "id": "gpt-4o-2024-05-13",
+      "rates": {
+        "inputPerMillion": 5,
+        "cachedInputPerMillion": null,
+        "outputPerMillion": 15
+      }
+    },
+    {
+      "id": "gpt-4o-mini",
+      "rates": {
+        "inputPerMillion": 0.15,
+        "cachedInputPerMillion": 0.075,
+        "outputPerMillion": 0.6
+      }
+    },
+    {
+      "id": "gpt-5",
+      "rates": {
+        "inputPerMillion": 1.25,
+        "cachedInputPerMillion": 0.125,
+        "outputPerMillion": 10
+      }
+    },
+    {
+      "id": "gpt-5-codex",
+      "rates": {
+        "inputPerMillion": 1.25,
+        "cachedInputPerMillion": 0.125,
+        "outputPerMillion": 10
+      }
+    },
+    {
+      "id": "gpt-5-mini",
+      "rates": {
+        "inputPerMillion": 0.25,
+        "cachedInputPerMillion": 0.025,
+        "outputPerMillion": 2
+      }
+    },
+    {
+      "id": "gpt-5-nano",
+      "rates": {
+        "inputPerMillion": 0.05,
+        "cachedInputPerMillion": 0.005,
+        "outputPerMillion": 0.4
+      }
+    },
+    {
+      "id": "gpt-5-pro",
+      "rates": {
+        "inputPerMillion": 15,
+        "cachedInputPerMillion": null,
+        "outputPerMillion": 120
+      }
+    },
+    {
+      "id": "gpt-5.1",
+      "rates": {
+        "inputPerMillion": 1.25,
+        "cachedInputPerMillion": 0.125,
+        "outputPerMillion": 10
+      }
+    },
+    {
+      "id": "gpt-5.1-codex",
+      "rates": {
+        "inputPerMillion": 1.25,
+        "cachedInputPerMillion": 0.125,
+        "outputPerMillion": 10
+      }
+    },
+    {
+      "id": "gpt-5.1-codex-max",
+      "rates": {
+        "inputPerMillion": 1.25,
+        "cachedInputPerMillion": 0.125,
+        "outputPerMillion": 10
+      }
+    },
+    {
+      "id": "gpt-5.1-codex-mini",
+      "rates": {
+        "inputPerMillion": 0.25,
+        "cachedInputPerMillion": 0.025,
+        "outputPerMillion": 2
+      }
+    },
+    {
+      "id": "gpt-5.2",
+      "rates": {
+        "inputPerMillion": 1.75,
+        "cachedInputPerMillion": 0.175,
+        "outputPerMillion": 14
+      }
+    },
+    {
+      "id": "gpt-5.2-codex",
+      "rates": {
+        "inputPerMillion": 1.75,
+        "cachedInputPerMillion": 0.175,
+        "outputPerMillion": 14
+      }
+    },
+    {
+      "id": "gpt-5.2-pro",
+      "rates": {
+        "inputPerMillion": 21,
+        "cachedInputPerMillion": null,
+        "outputPerMillion": 168
+      }
+    },
+    {
+      "id": "gpt-5.3-codex",
+      "rates": {
+        "inputPerMillion": 1.75,
+        "cachedInputPerMillion": 0.175,
+        "outputPerMillion": 14
+      }
+    },
+    {
+      "id": "gpt-5.4",
+      "rates": {
+        "inputPerMillion": 2.5,
+        "cachedInputPerMillion": 0.25,
+        "outputPerMillion": 15
+      },
+      "longContext": {
+        "inputThreshold": 272000,
+        "rates": {
+          "inputPerMillion": 5,
+          "cachedInputPerMillion": 0.5,
+          "outputPerMillion": 22.5
+        }
+      }
+    },
+    {
+      "id": "gpt-5.4-mini",
+      "rates": {
+        "inputPerMillion": 0.75,
+        "cachedInputPerMillion": 0.075,
+        "outputPerMillion": 4.5
+      }
+    },
+    {
+      "id": "gpt-5.4-nano",
+      "rates": {
+        "inputPerMillion": 0.2,
+        "cachedInputPerMillion": 0.02,
+        "outputPerMillion": 1.25
+      }
+    },
+    {
+      "id": "gpt-5.4-pro",
+      "rates": {
+        "inputPerMillion": 30,
+        "cachedInputPerMillion": null,
+        "outputPerMillion": 180
+      },
+      "longContext": {
+        "inputThreshold": 272000,
+        "rates": {
+          "inputPerMillion": 60,
+          "cachedInputPerMillion": null,
+          "outputPerMillion": 270
+        }
+      }
+    },
+    {
+      "id": "gpt-5.5",
+      "rates": {
+        "inputPerMillion": 5,
+        "cachedInputPerMillion": 0.5,
+        "outputPerMillion": 30
+      },
+      "longContext": {
+        "inputThreshold": 272000,
+        "rates": {
+          "inputPerMillion": 10,
+          "cachedInputPerMillion": 1,
+          "outputPerMillion": 45
+        }
+      }
+    },
+    {
+      "id": "gpt-5.5-pro",
+      "rates": {
+        "inputPerMillion": 30,
+        "cachedInputPerMillion": null,
+        "outputPerMillion": 180
+      },
+      "longContext": {
+        "inputThreshold": 272000,
+        "rates": {
+          "inputPerMillion": 60,
+          "cachedInputPerMillion": null,
+          "outputPerMillion": 270
+        }
+      }
+    },
+    {
+      "id": "gpt-5.6-luna",
+      "rates": {
+        "inputPerMillion": 0.2,
+        "cachedInputPerMillion": 0.02,
+        "cacheWritePerMillion": 0.25,
+        "outputPerMillion": 1.2
+      },
+      "longContext": {
+        "inputThreshold": 272000,
+        "rates": {
+          "inputPerMillion": 0.4,
+          "cachedInputPerMillion": 0.04,
+          "cacheWritePerMillion": 0.5,
+          "outputPerMillion": 1.8
+        }
+      }
+    },
+    {
+      "id": "gpt-5.6-sol",
+      "rates": {
+        "inputPerMillion": 4,
+        "cachedInputPerMillion": 0.4,
+        "cacheWritePerMillion": 5,
+        "outputPerMillion": 20
+      },
+      "longContext": {
+        "inputThreshold": 272000,
+        "rates": {
+          "inputPerMillion": 8,
+          "cachedInputPerMillion": 0.8,
+          "cacheWritePerMillion": 10,
+          "outputPerMillion": 30
+        }
+      }
+    },
+    {
+      "id": "gpt-5.6-terra",
+      "rates": {
+        "inputPerMillion": 2,
+        "cachedInputPerMillion": 0.2,
+        "cacheWritePerMillion": 2.5,
+        "outputPerMillion": 12
+      },
+      "longContext": {
+        "inputThreshold": 272000,
+        "rates": {
+          "inputPerMillion": 4,
+          "cachedInputPerMillion": 0.4,
+          "cacheWritePerMillion": 5,
+          "outputPerMillion": 18
+        }
+      }
+    },
+    {
+      "id": "gpt-6-astra",
+      "rates": {
+        "inputPerMillion": 10,
+        "cachedInputPerMillion": 1,
+        "cacheWritePerMillion": 12.5,
+        "outputPerMillion": 50
+      },
+      "longContext": {
+        "inputThreshold": 272000,
+        "rates": {
+          "inputPerMillion": 20,
+          "cachedInputPerMillion": 2,
+          "cacheWritePerMillion": 25,
+          "outputPerMillion": 75
+        }
+      }
+    },
+    {
+      "id": "gpt-6-luna",
+      "rates": {
+        "inputPerMillion": 0.1,
+        "cachedInputPerMillion": 0.01,
+        "cacheWritePerMillion": 0.125,
+        "outputPerMillion": 0.5
+      },
+      "longContext": {
+        "inputThreshold": 272000,
+        "rates": {
+          "inputPerMillion": 0.2,
+          "cachedInputPerMillion": 0.02,
+          "cacheWritePerMillion": 0.25,
+          "outputPerMillion": 0.75
+        }
+      }
+    },
+    {
+      "id": "gpt-6-sol",
+      "rates": {
+        "inputPerMillion": 2,
+        "cachedInputPerMillion": 0.2,
+        "cacheWritePerMillion": 2.5,
+        "outputPerMillion": 10
+      },
+      "longContext": {
+        "inputThreshold": 272000,
+        "rates": {
+          "inputPerMillion": 4,
+          "cachedInputPerMillion": 0.4,
+          "cacheWritePerMillion": 5,
+          "outputPerMillion": 15
+        }
+      }
+    },
+    {
+      "id": "gpt-6.1-sol",
+      "rates": {
+        "inputPerMillion": 2,
+        "cachedInputPerMillion": 0.1,
+        "cacheWritePerMillion": 2.5,
+        "outputPerMillion": 10
+      },
+      "longContext": {
+        "inputThreshold": 272000,
+        "rates": {
+          "inputPerMillion": 4,
+          "cachedInputPerMillion": 0.2,
+          "cacheWritePerMillion": 5,
+          "outputPerMillion": 15
+        }
+      }
+    },
+    {
+      "id": "o1",
+      "rates": {
+        "inputPerMillion": 15,
+        "cachedInputPerMillion": 7.5,
+        "outputPerMillion": 60
+      }
+    },
+    {
+      "id": "o1-pro",
+      "rates": {
+        "inputPerMillion": 150,
+        "cachedInputPerMillion": null,
+        "outputPerMillion": 600
+      }
+    },
+    {
+      "id": "o3",
+      "rates": {
+        "inputPerMillion": 2,
+        "cachedInputPerMillion": 0.5,
+        "outputPerMillion": 8
+      }
+    },
+    {
+      "id": "o3-mini",
+      "rates": {
+        "inputPerMillion": 1.1,
+        "cachedInputPerMillion": 0.55,
+        "outputPerMillion": 4.4
+      }
+    },
+    {
+      "id": "o3-pro",
+      "rates": {
+        "inputPerMillion": 20,
+        "cachedInputPerMillion": null,
+        "outputPerMillion": 80
+      }
+    },
+    {
+      "id": "o4-mini",
+      "rates": {
+        "inputPerMillion": 1.1,
+        "cachedInputPerMillion": 0.275,
+        "outputPerMillion": 4.4
+      }
+    }
+  ]
+}

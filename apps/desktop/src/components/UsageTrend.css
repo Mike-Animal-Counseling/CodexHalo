@@ -1,0 +1,30 @@
+.usage-trend { padding: 12px 0 0; border-top: 1px solid var(--glass-border); }
+.usage-trend__header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.usage-trend__header > strong { color: var(--muted); font-size: 10px; font-weight: 560; }
+.usage-trend__periods { display: flex; gap: 2px; padding: 2px; border-radius: 7px; background: var(--glass-soft); }
+.usage-trend__periods button { padding: 3px 7px; border-radius: 5px; background: transparent; color: var(--faint); font-size: 9px; line-height: 1.3; cursor: pointer; transition: background 150ms ease, color 150ms ease; }
+.usage-trend__periods button[aria-pressed="true"] { color: var(--text); background: var(--glass-border); }
+.usage-trend__periods button:hover { color: var(--text); }
+.usage-trend__summary { display: flex; justify-content: space-between; gap: 8px; margin: 9px 0 7px; }
+.usage-trend__summary > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.usage-trend__summary strong { color: var(--text); font-size: 16px; font-weight: 560; letter-spacing: -.035em; font-variant-numeric: tabular-nums; }
+.usage-trend__summary small { color: var(--muted); font-size: 9px; font-weight: 450; letter-spacing: 0; }
+.usage-trend__summary span { color: var(--faint); font-size: 8px; }
+.usage-trend__summary .usage-trend__cost { text-align: right; }
+.usage-trend__cost strong { font-size: 12px; line-height: 20px; }
+.usage-trend__chart { position: relative; height: 66px; padding-top: 12px; }
+.usage-trend__ceiling { position: absolute; top: 0; right: 0; color: var(--faint); font: 8px/1.2 "Cascadia Mono", Consolas, monospace; }
+.usage-trend__bars { display: flex; gap: 3px; height: 100%; border-bottom: 1px solid var(--glass-border); background: linear-gradient(to bottom, transparent calc(50% - .5px), var(--glass-soft) 50%, transparent calc(50% + .5px)); }
+.usage-trend__point { position: relative; display: flex; flex: 1; min-width: 0; height: 100%; padding: 0; align-items: flex-end; background: transparent; cursor: pointer; }
+.usage-trend__point i { display: block; width: 100%; min-height: 2px; border-radius: 3px 3px 0 0; background: var(--halo); opacity: .32; transition: height 180ms ease, opacity 140ms ease; }
+.usage-trend__point.is-selected i { opacity: .9; }
+.usage-trend__point.is-empty i { height: 2px !important; background: var(--faint); opacity: .18; }
+.usage-trend__point.is-selected.is-empty i { opacity: .55; }
+.usage-trend__point:focus-visible { border-radius: 3px; outline-offset: 1px; }
+.usage-trend__axis, .usage-trend__detail { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.usage-trend__axis { margin-top: 4px; color: var(--faint); font-size: 8px; }
+.usage-trend__detail { margin-top: 8px; color: var(--muted); font-size: 9px; line-height: 1.4; font-variant-numeric: tabular-nums; }
+.usage-trend__detail strong { color: var(--text); font-weight: 520; }
+.usage-trend__empty { margin: 11px 0 2px; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.usage-trend--still *, :root[data-motion="reduced"] .usage-trend * { transition: none !important; }
+@media (prefers-reduced-motion: reduce) { .usage-trend * { transition: none !important; } }

@@ -5,8 +5,9 @@ use std::{
     io::{BufRead, BufReader, Read, Seek},
     path::{Path, PathBuf},
 };
-use chrono::{DateTime, FixedOffset, Local, NaiveDate};
+use chrono::{DateTime, FixedOffset, Local, Months, NaiveDate};
 use codexhalo_shared::{ModelUsage, TokenUsage};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use walkdir::WalkDir;
 
@@ -73,8 +74,7 @@ struct UsageOccurrence {
     usage: ModelUsage,
     model: Option<String>,
     turn_id: Option<String>,
-    on_selected_day: bool,
-    outside_selected_day: bool,
+    day: Option<NaiveDate>,
     inherited_projection: bool,
 }
 
@@ -83,8 +83,15 @@ struct MergedInterval {
     usage: ModelUsage,
     models: Vec<String>,
     turn_ids: Vec<String>,
-    on_selected_day: bool,
-    outside_selected_day: bool,
+    first_day: Option<NaiveDate>,
+    spans_days: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct DailyTokenUsage {
+    /// A calendar date in the machine's local time zone, not a UTC midnight.
+    pub date: String,
+    pub tokens: TokenUsage,
 }
 
 pub fn aggregate_day(root: &Path, day: NaiveDate) -> Result<TokenUsage, String> {
@@ -102,6 +109,60 @@ pub fn aggregate_codex_home_day(codex_home: &Path, day: NaiveDate) -> Result<Tok
 }
 
 fn aggregate_roots_day(roots: &[PathBuf], day: NaiveDate) -> Result<TokenUsage, String> {
+    Ok(finalize_intervals(collect_intervals(roots)?, day))
+}
+
+/// Collect the past calendar year once, preserving earlier counter baselines.
+/// Replayed intervals belong to their earliest non-inherited local date.
+pub fn aggregate_codex_home_history(
+    codex_home: &Path,
+    through: NaiveDate,
+) -> Result<Vec<DailyTokenUsage>, String> {
+    aggregate_roots_history(
+        &[
+            codex_home.join("sessions"),
+            codex_home.join("archived_sessions"),
+        ],
+        through,
+    )
+}
+
+fn aggregate_roots_history(
+    roots: &[PathBuf],
+    through: NaiveDate,
+) -> Result<Vec<DailyTokenUsage>, String> {
+    let start = through
+        .checked_sub_months(Months::new(12))
+        .and_then(|day| day.succ_opt())
+        .ok_or_else(|| "The history date is outside the supported calendar range".to_owned())?;
+    let mut by_day = BTreeMap::<NaiveDate, TokenUsage>::new();
+    for buckets in collect_intervals(roots)?.into_values() {
+        for interval in buckets {
+            let Some(day) = interval.first_day else { continue };
+            if day < start || day > through || usage_is_zero(&interval.usage) {
+                continue;
+            }
+            if let Some(model) = interval_model(&interval) {
+                by_day.entry(day).or_default().push(&model, interval.usage);
+            }
+        }
+    }
+    let mut history = Vec::with_capacity(366);
+    let mut day = start;
+    loop {
+        history.push(DailyTokenUsage {
+            date: day.format("%Y-%m-%d").to_string(),
+            tokens: by_day.remove(&day).unwrap_or_default(),
+        });
+        if day == through {
+            break;
+        }
+        day = day.succ_opt().ok_or_else(|| "Invalid history date".to_owned())?;
+    }
+    Ok(history)
+}
+
+fn collect_intervals(roots: &[PathBuf]) -> Result<HashMap<String, Vec<MergedInterval>>, String> {
     let mut paths = Vec::new();
     for root in roots {
         if !root.exists() {
@@ -132,9 +193,9 @@ fn aggregate_roots_day(roots: &[PathBuf], day: NaiveDate) -> Result<TokenUsage, 
     let mut intervals = HashMap::<String, Vec<MergedInterval>>::new();
     for events in streams.values_mut() {
         events.sort_by(compare_events);
-        process_stream(events, day, &mut intervals);
+        process_stream(events, &mut intervals);
     }
-    Ok(finalize_intervals(intervals))
+    Ok(intervals)
 }
 
 pub fn aggregate_today(root: &Path) -> Result<TokenUsage, String> {
@@ -290,7 +351,6 @@ fn event_rank(event: &EventKind) -> u8 {
 
 fn process_stream(
     events: &[SequencedEvent],
-    day: NaiveDate,
     intervals: &mut HashMap<String, Vec<MergedInterval>>,
 ) {
     let mut state = StreamState::default();
@@ -330,7 +390,6 @@ fn process_stream(
             continue;
         };
 
-        let on_selected_day = on_day_timestamp(event.timestamp.as_ref(), day);
         merge_occurrence(
             intervals,
             fingerprint,
@@ -339,8 +398,7 @@ fn process_stream(
                 usage,
                 model,
                 turn_id,
-                on_selected_day,
-                outside_selected_day: event.timestamp.is_some() && !on_selected_day,
+                day: event.timestamp.as_ref().map(|value| value.with_timezone(&Local).date_naive()),
                 inherited_projection,
             },
         );
@@ -426,8 +484,14 @@ fn merge_occurrence(
             }
         }
         if !occurrence.inherited_projection {
-            bucket.on_selected_day |= occurrence.on_selected_day;
-            bucket.outside_selected_day |= occurrence.outside_selected_day;
+            if let Some(day) = occurrence.day {
+                if let Some(first) = bucket.first_day {
+                    bucket.spans_days |= day != first;
+                    bucket.first_day = Some(day.min(first));
+                } else {
+                    bucket.first_day = Some(day);
+                }
+            }
         }
         return;
     }
@@ -445,8 +509,8 @@ fn merge_occurrence(
         usage: occurrence.usage,
         models,
         turn_ids,
-        on_selected_day: !occurrence.inherited_projection && occurrence.on_selected_day,
-        outside_selected_day: !occurrence.inherited_projection && occurrence.outside_selected_day,
+        first_day: if occurrence.inherited_projection { None } else { occurrence.day },
+        spans_days: false,
     });
 }
 
@@ -458,34 +522,32 @@ fn turn_ids_compatible(existing: &[String], incoming: Option<&str>) -> bool {
             .any(|turn_id| Some(turn_id.as_str()) == incoming)
 }
 
-fn finalize_intervals(intervals: HashMap<String, Vec<MergedInterval>>) -> TokenUsage {
+fn finalize_intervals(intervals: HashMap<String, Vec<MergedInterval>>, day: NaiveDate) -> TokenUsage {
     let mut total = TokenUsage::default();
     for buckets in intervals.into_values() {
-        for mut interval in buckets {
-            if !interval.on_selected_day
-                || interval.outside_selected_day
+        for interval in buckets {
+            if interval.first_day != Some(day)
+                || interval.spans_days
                 || usage_is_zero(&interval.usage)
             {
                 continue;
             }
-            interval.models.sort();
-            interval.models.dedup();
-            let mut user_models = interval
-                .models
-                .iter()
-                .filter(|model| !is_internal_model(model))
-                .cloned();
-            let first = user_models.next();
-            let model = match (first, user_models.next()) {
-                (Some(model), None) => model,
-                (Some(_), Some(_)) => UNCLASSIFIED_MODEL.to_owned(),
-                (None, _) if interval.models.iter().any(|model| is_internal_model(model)) => continue,
-                (None, _) => UNCLASSIFIED_MODEL.to_owned(),
-            };
-            total.push(&model, interval.usage);
+            if let Some(model) = interval_model(&interval) {
+                total.push(&model, interval.usage);
+            }
         }
     }
     total
+}
+
+fn interval_model(interval: &MergedInterval) -> Option<String> {
+    let mut user_models = interval.models.iter().filter(|model| !is_internal_model(model));
+    match (user_models.next(), user_models.next()) {
+        (Some(model), None) => Some(model.clone()),
+        (Some(_), Some(_)) => Some(UNCLASSIFIED_MODEL.to_owned()),
+        (None, _) if interval.models.iter().any(|model| is_internal_model(model)) => None,
+        (None, _) => Some(UNCLASSIFIED_MODEL.to_owned()),
+    }
 }
 
 fn usage_key(usage: &ModelUsage) -> String {
@@ -527,11 +589,6 @@ fn model_id(value: Option<&Value>) -> Option<String> {
 
 fn string_field(value: &Value, names: &[&str]) -> Option<String> {
     names.iter().find_map(|name| model_id(value.get(*name)))
-}
-
-fn on_day_timestamp(timestamp: Option<&DateTime<FixedOffset>>, day: NaiveDate) -> bool {
-    timestamp
-        .is_some_and(|value| value.with_timezone(&Local).date_naive() == day)
 }
 
 fn optional_token(value: &Value, names: &[&str]) -> Option<u64> {
@@ -1062,4 +1119,91 @@ mod tests {
         let usage = aggregate_today(&temp.path().join("never-created")).unwrap();
         assert_eq!(usage, TokenUsage::default());
     }
+    #[test]
+    fn history_fills_calendar_gaps_and_includes_leap_day() {
+        let target = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target");
+        let temp = tempfile::tempdir_in(target).unwrap();
+        let through = NaiveDate::from_ymd_opt(2024, 3, 1).unwrap();
+        let history = aggregate_roots_history(&[temp.path().to_path_buf()], through).unwrap();
+        assert_eq!(history.len(), 366);
+        assert_eq!(history.first().unwrap().date, "2023-03-02");
+        assert_eq!(history.last().unwrap().date, "2024-03-01");
+        assert!(history.iter().any(|day| day.date == "2024-02-29"));
+        assert!(history.iter().all(|day| day.tokens == TokenUsage::default()));
+
+        let clamped = aggregate_roots_history(
+            &[temp.path().to_path_buf()],
+            NaiveDate::from_ymd_opt(2024, 2, 29).unwrap(),
+        ).unwrap();
+        assert_eq!(clamped.first().unwrap().date, "2023-03-01");
+        assert_eq!(clamped.last().unwrap().date, "2024-02-29");
+        assert_eq!(clamped.len(), 366);
+    }
+
+    #[test]
+    fn history_uses_local_midnight_and_preserves_prior_day_counter_baseline() {
+        use chrono::{TimeZone, Utc};
+        let before = Local.with_ymd_and_hms(2026, 8, 22, 23, 59, 59).single().unwrap();
+        let after = Local.with_ymd_and_hms(2026, 8, 23, 0, 0, 1).single().unwrap();
+        let lines = [
+            serde_json::json!({"timestamp": before.with_timezone(&Utc).to_rfc3339(), "type": "turn_context", "payload": {"model": "gpt-test"}}).to_string(),
+            serde_json::json!({"timestamp": before.with_timezone(&Utc).to_rfc3339(), "type": "token_count", "payload": {"total_token_usage": {"input_tokens": 70, "cached_input_tokens": 20, "output_tokens": 10, "total_tokens": 80}}}).to_string(),
+            serde_json::json!({"timestamp": after.with_timezone(&Utc).to_rfc3339(), "type": "token_count", "payload": {"total_token_usage": {"input_tokens": 100, "cached_input_tokens": 25, "output_tokens": 20, "total_tokens": 120}}}).to_string(),
+        ];
+        let temp = fixture(&lines.iter().map(String::as_str).collect::<Vec<_>>());
+        let history = aggregate_roots_history(&[temp.path().to_path_buf()], day()).unwrap();
+        let previous = history.iter().find(|day| day.date == "2026-08-22").unwrap();
+        assert_eq!(previous.tokens.total, 80);
+        let today = history.last().unwrap();
+        assert_eq!(today.tokens.total, 40);
+        assert_eq!(today.tokens.cached_input, Some(5));
+        assert_eq!(today.tokens.by_model["gpt-test"].output, 10);
+        assert_eq!(today.tokens, aggregate_day(temp.path(), day()).unwrap());
+        assert_eq!(history.iter().filter(|day| day.tokens.total > 0).count(), 2);
+    }
+
+    #[test]
+    fn history_keeps_counter_baselines_older_than_the_visible_year() {
+        let temp = fixture(&[
+            r#"{"timestamp":"2025-08-23T12:00:00Z","type":"turn_context","payload":{"model":"gpt-test"}}"#,
+            r#"{"timestamp":"2025-08-23T12:00:01Z","type":"token_count","payload":{"total_token_usage":{"input_tokens":90,"output_tokens":10,"total_tokens":100}}}"#,
+            r#"{"timestamp":"2025-08-24T12:00:01Z","type":"token_count","payload":{"total_token_usage":{"input_tokens":110,"output_tokens":20,"total_tokens":130}}}"#,
+        ]);
+        let history = aggregate_roots_history(&[temp.path().to_path_buf()], day()).unwrap();
+        assert_eq!(history.first().unwrap().date, "2025-08-24");
+        assert_eq!(history.first().unwrap().tokens.total, 30);
+        assert_eq!(history.first().unwrap().tokens.by_model["gpt-test"].input, 20);
+        assert_eq!(history.iter().map(|day| day.tokens.total).sum::<u64>(), 30);
+    }
+
+    #[test]
+    fn history_counts_replayed_archived_and_compressed_intervals_once_on_original_day() {
+        let target = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target");
+        let home = tempfile::tempdir_in(target).unwrap();
+        let sessions = home.path().join("sessions");
+        let archived = home.path().join("archived_sessions");
+        fs::create_dir_all(&sessions).unwrap();
+        fs::create_dir_all(&archived).unwrap();
+        let original = concat!(
+            r#"{"timestamp":"2026-08-22T12:00:00Z","type":"session_meta","payload":{"id":"replayed-history"}}"#, "\n",
+            r#"{"timestamp":"2026-08-22T12:00:01Z","type":"turn_context","payload":{"turn_id":"old-turn","model":"gpt-test"}}"#, "\n",
+            r#"{"timestamp":"2026-08-22T12:00:02Z","type":"token_count","payload":{"info":{"total_token_usage":{"input_tokens":80,"output_tokens":20,"total_tokens":100},"last_token_usage":{"input_tokens":80,"output_tokens":20,"total_tokens":100}}}}"#, "\n",
+        );
+        fs::write(sessions.join("original.jsonl"), original).unwrap();
+        fs::write(archived.join("duplicate.jsonl.zst"), zstd::stream::encode_all(original.as_bytes(), 3).unwrap()).unwrap();
+        fs::write(sessions.join("replay.jsonl"), concat!(
+            r#"{"timestamp":"2026-08-23T12:00:00Z","type":"session_meta","payload":{"id":"replayed-history"}}"#, "\n",
+            r#"{"timestamp":"2026-08-23T12:00:01Z","type":"turn_context","payload":{"turn_id":"old-turn","model":"gpt-test"}}"#, "\n",
+            r#"{"timestamp":"2026-08-23T12:00:02Z","type":"token_count","payload":{"info":{"total_token_usage":{"input_tokens":80,"output_tokens":20,"total_tokens":100},"last_token_usage":{"input_tokens":80,"output_tokens":20,"total_tokens":100}}}}"#, "\n",
+            r#"{"timestamp":"2026-08-23T12:01:01Z","type":"turn_context","payload":{"turn_id":"new-turn","model":"gpt-future"}}"#, "\n",
+            r#"{"timestamp":"2026-08-23T12:01:02Z","type":"token_count","payload":{"info":{"total_token_usage":{"input_tokens":120,"output_tokens":30,"total_tokens":150},"last_token_usage":{"input_tokens":40,"output_tokens":10,"total_tokens":50}}}}"#, "\n",
+        )).unwrap();
+        let history = aggregate_codex_home_history(home.path(), day()).unwrap();
+        assert_eq!(history.iter().find(|day| day.date == "2026-08-22").unwrap().tokens.total, 100);
+        assert_eq!(history.last().unwrap().tokens.total, 50);
+        assert_eq!(history.last().unwrap().tokens.by_model["gpt-future"].total, 50);
+        assert_eq!(history.iter().map(|day| day.tokens.total).sum::<u64>(), 150);
+        assert_eq!(history.last().unwrap().tokens, aggregate_codex_home_day(home.path(), day()).unwrap());
+    }
+
 }

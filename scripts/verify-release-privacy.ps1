@@ -4,6 +4,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "privacy-public-text.ps1")
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $releaseRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot "target\release"))
 $distRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot "apps\desktop\dist"))
@@ -77,7 +78,8 @@ if ($env:COMPUTERNAME -and $env:COMPUTERNAME.Length -ge 6) {
     $needles += [pscustomobject]@{ Value = $machineShare; Label = 'build machine UNC path' }
 }
 foreach ($needle in $needles) {
-    Assert-NeedleAbsent $exeText $needle.Value $needle.Label
+    $checkedText = if ($needle.Label -eq 'build username') { Remove-PublicReleaseAttributions $exeText } else { $exeText }
+    Assert-NeedleAbsent $checkedText $needle.Value $needle.Label
 }
 if ($exeText -match '(?i)sk-[a-z0-9_-]{20,}') {
     throw 'Privacy verification found API-key-shaped material.'

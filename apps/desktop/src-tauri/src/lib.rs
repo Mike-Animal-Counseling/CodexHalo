@@ -1,5 +1,7 @@
 mod settings;
 mod status;
+mod pricing_sync;
+mod reminders;
 #[cfg(target_os = "windows")]
 mod windows_startup;
 
@@ -15,6 +17,7 @@ use tauri::utils::config::Color;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri_plugin_autostart::ManagerExt as AutostartExt;
+use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use tokio::time::{interval, sleep, Duration, MissedTickBehavior};
 
@@ -43,6 +46,9 @@ struct AppState {
     orb_position: Mutex<Option<WindowPosition>>,
     retracted: Mutex<Option<DockEdge>>,
     startup_monitor: Mutex<Option<tauri::async_runtime::JoinHandle<()>>>,
+    pricing_sync: pricing_sync::PricingSync,
+    reminders: Mutex<reminders::ReminderTracker>,
+    refresh_lock: tokio::sync::Mutex<()>,
 }
 
 fn require_codex_consent(enabled: bool) -> Result<(), String> {
@@ -334,6 +340,7 @@ fn hide_window(window: WebviewWindow) -> Result<(), String> {
 #[tauri::command]
 fn set_settings(window: WebviewWindow, state: State<'_, AppState>, mut settings: Settings) -> Result<Settings, String> {
     settings.opacity = settings.opacity.clamp(0.70, 1.0);
+    settings.reset_reminder_minutes = settings.reset_reminder_minutes.min(10_080);
     let mut settings_guard = state.settings.lock().map_err(|error| error.to_string())?;
     let previous = settings_guard.clone();
     // Consent is security-sensitive and may only change through set_codex_enabled.
@@ -371,6 +378,8 @@ fn set_codex_enabled(state: State<'_, AppState>, enabled: bool) -> Result<Settin
     }
     if !enabled {
         *state.cache.lock().map_err(|error| error.to_string())? = None;
+        status::clear_history_cache();
+        if let Ok(mut tracker) = state.reminders.lock() { tracker.clear_observed(); }
     }
     Ok(settings)
 }
@@ -627,7 +636,7 @@ async fn set_orb_retracted(
     }
 
     let edge = edge.or(detected_edge).ok_or_else(|| "The orb is not touching a display edge".to_owned())?;
-    let handle = (8.0 * window.scale_factor().map_err(|error| error.to_string())?).round() as i32;
+    let handle = (12.0 * window.scale_factor().map_err(|error| error.to_string())?).round() as i32;
     let target = retracted_position(anchor, width, height, bounds, edge, handle);
     move_native_window(&window, current, target, animate).await?;
     *state.retracted.lock().map_err(|error| error.to_string())? = Some(edge);
@@ -670,6 +679,7 @@ fn settle_orb_position_inner(window: &WebviewWindow, state: &AppState, x: i32, y
 
 #[tauri::command]
 async fn refresh_status(state: State<'_, AppState>) -> Result<DashboardStatus, String> {
+    let _refresh = state.refresh_lock.lock().await;
     let captured_generation = {
         let settings = state.settings.lock().map_err(|error| error.to_string())?;
         if !settings.codex_enabled {
@@ -686,10 +696,12 @@ async fn refresh_status(state: State<'_, AppState>) -> Result<DashboardStatus, S
         state.consent_generation.load(Ordering::Acquire),
         captured_generation,
     ) {
+        status::clear_history_cache();
         return Ok(DashboardStatus::disabled());
     }
     match refreshed {
         Ok(fresh) => {
+            if let Ok(mut tracker) = state.reminders.lock() { tracker.observe(&fresh.windows, chrono::Utc::now().timestamp()); }
             *state.cache.lock().map_err(|error| error.to_string())? = Some(fresh.clone());
             Ok(fresh)
         }
@@ -704,12 +716,89 @@ async fn refresh_status(state: State<'_, AppState>) -> Result<DashboardStatus, S
                     windows: Vec::new(),
                     tokens: Default::default(),
                     pricing: codexhalo_pricing::estimate(&Default::default()),
+                    history: Vec::new(),
                     updated_at: None,
                     message: Some(message),
                 })
             }
         }
     }
+}
+
+#[tauri::command]
+fn get_pricing_status() -> codexhalo_pricing::PricingCatalogStatus {
+    codexhalo_pricing::catalog_status()
+}
+
+#[tauri::command]
+async fn refresh_pricing(state: State<'_, AppState>) -> Result<codexhalo_pricing::PricingCatalogStatus, String> {
+    {
+        let settings = state.settings.lock().map_err(|error| error.to_string())?;
+        require_codex_consent(settings.codex_enabled)?;
+    }
+    Ok(state.pricing_sync.refresh(true).await)
+}
+
+#[tauri::command]
+fn test_reset_notification(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    let settings = state.settings.lock().map_err(|error| error.to_string())?;
+    require_codex_consent(settings.codex_enabled)?;
+    app.notification().builder().title("CodexHalo reminders")
+        .body("Reset reminders are ready. Keep CodexHalo running to receive them.")
+        .show().map_err(|error| error.to_string())
+}
+
+fn start_background_services(app: &AppHandle) {
+    let pricing_app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let mut ticker = interval(Duration::from_secs(60));
+        ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
+        loop {
+            ticker.tick().await;
+            let state = pricing_app.state::<AppState>();
+            let sync_enabled = state.settings.lock().map(|settings|
+                settings.codex_enabled && settings.auto_sync_pricing).unwrap_or(false);
+            if sync_enabled { state.pricing_sync.refresh(false).await; }
+        }
+    });
+    let reminder_app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let mut ticker = interval(Duration::from_secs(15));
+        ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
+        loop {
+            ticker.tick().await;
+            let state = reminder_app.state::<AppState>();
+            let captured_generation = {
+                let Ok(settings) = state.settings.lock() else { continue };
+                if !settings.codex_enabled || !settings.reset_reminder_enabled { continue; }
+                state.consent_generation.load(Ordering::Acquire)
+            };
+            let now = chrono::Utc::now().timestamp();
+            let snapshot = state.cache.lock().ok().and_then(|cache| cache.clone());
+            if let Some(snapshot) = snapshot.as_ref().filter(|snapshot|
+                snapshot.updated_at.is_some_and(|updated| now * 1_000 - updated <= 120_000)) {
+                // Keep consent locked through notification dispatch, just as refresh commits do.
+                if let Ok(settings) = state.settings.lock() {
+                    if settings.reset_reminder_enabled && consent_is_current(settings.codex_enabled,
+                        state.consent_generation.load(Ordering::Acquire), captured_generation) {
+                        if let Ok(mut tracker) = state.reminders.lock() {
+                            tracker.observe(&snapshot.windows, now);
+                            let due = tracker.due_observed(now, settings.reset_reminder_minutes);
+                            for window in due {
+                                let body = reminders::reminder_body(&window, now);
+                                if reminder_app.notification().builder().title("Codex limit reset")
+                                    .body(body).show().is_ok() { tracker.mark_sent(&window, now); }
+                            }
+                        }
+                    }
+                }
+            }
+            let stale = snapshot.as_ref().and_then(|s| s.updated_at)
+                .is_none_or(|updated| now * 1_000 - updated >= 30_000);
+            // Backend polling continues in tray/edge-hidden modes without depending on WebView timers.
+            if stale { let _ = refresh_status(state).await; }
+        }
+    });
 }
 
 #[tauri::command]
@@ -820,6 +909,7 @@ fn restore_position(window: &WebviewWindow, position: Option<WindowPosition>) {
 
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_notification::init())
         .plugin(
             tauri_plugin_autostart::Builder::new()
                 .app_name("CodexHalo")
@@ -834,7 +924,9 @@ pub fn run() {
         }).build())
         .setup(|app| {
             let config = app.path().app_config_dir()?;
-            let store = SettingsStore::new(config);
+            let store = SettingsStore::new(config.clone());
+            let pricing_sync = pricing_sync::PricingSync::new(config.clone());
+            let reminders = reminders::ReminderTracker::new(config);
             let settings = store.load();
             if let Err(error) = configure_autostart(app.handle(), settings.startup_behavior) {
                 eprintln!("Could not synchronize Windows startup behavior: {error}");
@@ -866,6 +958,9 @@ pub fn run() {
                 surface_layout: Mutex::new(SurfaceLayout { orb_x: 0.0, orb_y: 0.0, panel_x: 0.0, panel_y: 0.0, placement: ExpandedPlacement::Below, edge: None }),
                 retracted: Mutex::new(None),
                 startup_monitor: Mutex::new(None),
+                pricing_sync,
+                reminders: Mutex::new(reminders),
+                refresh_lock: tokio::sync::Mutex::new(()),
             });
             let handoff = WebviewWindowBuilder::new(
                 app,
@@ -890,12 +985,13 @@ pub fn run() {
             }
             setup_tray(app)?;
             sync_codex_monitor(app.handle(), app.state::<AppState>().inner(), startup_behavior);
+            start_background_services(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             get_settings, hide_window, set_settings, set_codex_enabled, refresh_status,
             start_codex_login, set_window_surface, set_orb_retracted, apply_expanded_layout,
-            commit_compact_surface, finish_compact_handoff, drag_orb
+            commit_compact_surface, finish_compact_handoff, drag_orb, refresh_pricing, get_pricing_status, test_reset_notification
         ])
         .run(tauri::generate_context!())
         .expect("failed to run CodexHalo");

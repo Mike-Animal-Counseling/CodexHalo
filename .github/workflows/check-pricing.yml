@@ -1,0 +1,41 @@
+name: Check public token prices
+
+on:
+  schedule:
+    - cron: "21 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pricing-catalog-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify official pricing parser
+        run: node --test scripts/update-pricing.test.mjs
+      - name: Build catalog from official OpenAI documentation
+        run: node scripts/update-pricing.mjs
+      - name: Record price changes for review
+        shell: bash
+        run: |
+          git diff -- data/pricing.json > pricing-changes.patch
+          if test -s pricing-changes.patch; then
+            echo "Published prices changed. Review the pricing-catalog artifact and update data/pricing.json." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Published token prices are unchanged." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pricing-catalog
+          path: |
+            data/pricing.json
+            pricing-changes.patch

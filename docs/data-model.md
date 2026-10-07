@@ -30,3 +30,16 @@ not turn into Unclassified. Zero usage produces a zero estimate.
 API equivalent is informational, not an invoice or the user's subscription
 bill. Aggregate counters cannot reliably apply request-specific long-context,
 service-tier, regional, or tool charges.
+
+UsageHistoryDay holds a local calendar date, TokenUsage, and PricingEstimate.
+A trailing calendar year is read with one cross-file deduplication pass and
+gap-filled daily buckets. Historical days are cached for five minutes; today
+refreshes with the live dashboard. The frontend shows 7 or 30 daily bars and
+12 rolling monthly intervals for the year. All rows in a dashboard refresh
+use one captured pricing catalog and one local date. Historical API equivalents
+are recalculated at the selected catalog rates, not stored past invoices.
+
+PricingEstimate also includes per-model TokenUsage/rates/value components,
+unknown-model coverage, estimation assumptions, catalog origin, and last-check
+metadata. Model matching is exact or uses reviewed explicit aliases. All-unknown
+usage yields an unavailable value; mixed usage yields a marked subtotal.

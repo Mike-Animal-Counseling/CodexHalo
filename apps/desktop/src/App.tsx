@@ -39,6 +39,7 @@ function MainApp() {
   const [dockedEdge, setDockedEdge] = useState<DockEdge>();
   const [systemReducedMotion, setSystemReducedMotion] = useState(false);
   const [, setClockTick] = useState(0);
+  const revealBusy = useRef(false);
   const hideTimer = useRef<number | undefined>(undefined);
   const closeTimer = useRef<number | undefined>(undefined);
   const dockedEdgeRef = useRef<DockEdge | undefined>(undefined);
@@ -109,8 +110,11 @@ function MainApp() {
   }, [cancelHide]);
   const reveal = useCallback(() => {
     cancelHide();
+    if (revealBusy.current) return;
+    revealBusy.current = true;
+    setEdgeHidden(false);
     void bridge.setEdgeRetracted(false, dockedEdgeRef.current ?? null, !reducedMotionRef.current)
-      .finally(() => setEdgeHidden(false));
+      .finally(() => { revealBusy.current = false; });
   }, [cancelHide]);
 
   const refresh = useCallback(async () => {
@@ -291,7 +295,24 @@ function MainApp() {
   const disable = async () => {
     setSettings(await bridge.setCodexEnabled(false)); setStatus(disabledStatus); setSettingsOpen(false); setPhase("closed");
   };
-  const updateSettings = async (next: Settings) => { setSettings(next); setSettings(await bridge.saveSettings(next)); };
+  const settingsSaveQueue = useRef(Promise.resolve());
+  const updateSettings = (next: Settings) => {
+    setSettings(next);
+    settingsSaveQueue.current = settingsSaveQueue.current.then(async () => {
+      const saved = await bridge.saveSettings(next);
+      if (settingsRef.current === next) setSettings(saved);
+    }).catch(() => { void bridge.getSettings().then(setSettings); });
+  };
+  const syncPricing = async () => {
+    const result = await bridge.syncPricing();
+    await refresh();
+    return result.refreshError ? "Update unavailable. Saved prices are still in use." :
+      result.catalogSource === "remote" ? "Prices are up to date." : "Built-in prices remain available.";
+  };
+  const pricingStatus = status.pricing.catalogSource === "remote" ? "Using the latest downloaded prices."
+    : status.pricing.catalogSource === "cached" ? "Using saved prices for offline access."
+    : `Built-in prices \u00b7 ${status.pricing.version}`;
+
   const nativeDrag = async () => {
     if (surfaceBusyRef.current) return false;
     const wasExpanded = expandedRef.current;
@@ -430,8 +451,9 @@ function MainApp() {
     }}>
       <div className={`panel-frame panel-frame--join-${panelJoin} ${phase === "open" ? "is-open" : ""}`} style={{ left: activeLayout.panelX, top: activeLayout.panelY, transformOrigin }}>
         {settingsOpen
-          ? <SettingsSheet settings={settings} windows={status.windows} onChange={updateSettings} onDisable={disable} onClose={() => setSettingsOpen(false)} />
-          : <ExpandedPanel status={status} refreshing={refreshing} reducedMotion={reducedMotion} quotaWindowMinutes={settings.quotaWindowMinutes} onRefresh={refresh} onSettings={() => setSettingsOpen(true)} />}
+          ? <SettingsSheet settings={settings} windows={status.windows} onChange={updateSettings} onDisable={disable} onClose={() => setSettingsOpen(false)}
+              onSyncPricing={syncPricing} onTestReminder={bridge.testReminder} pricingStatus={pricingStatus} />
+          : <ExpandedPanel status={status} refreshing={refreshing} reducedMotion={reducedMotion} quotaWindowMinutes={settings.quotaWindowMinutes} showApiEquivalent={settings.showApiEquivalent} onRefresh={refresh} onSettings={() => setSettingsOpen(true)} />}
       </div>
       <div className={`expanded-orb expanded-orb--join-${capsuleJoin} ${phase === "open" || phase === "closing" ? "is-open" : ""} ${phase === "closing" ? "is-closing" : ""}`} style={{ left: activeLayout.orbX, top: activeLayout.orbY }}>
         <FloatingOrb status={status} refreshing={refreshing} reducedMotion={reducedMotion} dragging={dragging}

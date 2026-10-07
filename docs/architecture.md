@@ -26,3 +26,14 @@ without depending on VS Code, CLI, or desktop process identity.
 
 Portable parsing, pricing, and shared data crates remain separate from
 Windows-specific Tauri window, tray, startup, and process-detection code.
+
+The public price catalog is bundled independently of the executable and can
+be refreshed daily/manual from a fixed HTTPS GitHub endpoint. Rust validates
+and saves a local fallback; frontend code retains its narrow IPC-only network
+policy. A read-only scheduled repository workflow checks official pricing and
+produces a candidate artifact for maintainers to review and publish.
+
+A native 15-second reminder ticker observes quota reset cycles and dispatches
+Windows notifications once per cycle at a configurable lead time (0 means at
+reset). It preserves an observed cycle briefly after the quota API advances,
+checks the consent generation before dispatch, and refreshes quota while hidden.

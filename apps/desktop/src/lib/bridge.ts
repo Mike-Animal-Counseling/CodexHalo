@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { defaultSettings, type DashboardStatus, type Settings } from "../types";
+import { defaultSettings, type DashboardStatus, type Settings, type PricingCatalogStatus } from "../types";
 
 declare global {
   interface Window { __TAURI_INTERNALS__?: unknown }
@@ -29,7 +29,7 @@ function previewSettings(): Settings {
 
 function demoStatus(): DashboardStatus {
   const now = Math.floor(Date.now() / 1000);
-  return {
+  const result: DashboardStatus = {
     connection: "ready",
     preview: true,
     windows: [
@@ -41,15 +41,37 @@ function demoStatus(): DashboardStatus {
       cachedInput: 486_200,
       output: 68_420,
       reasoning: 19_800,
-      total: 1_858_720,
+      total: 1_352_720,
       byModel: {
-        "gpt-5.3-codex": { input: 1_112_000, cachedInput: 421_000, output: 59_200, reasoning: 18_200, total: 1_590_400 },
-        "gpt-5.2-codex": { input: 172_300, cachedInput: 65_200, output: 9_220, reasoning: 1_600, total: 268_320 },
+        "gpt-6.1-sol": { input: 1_112_000, cachedInput: 421_000, output: 59_200, reasoning: 18_200, total: 1_171_200 },
+        "gpt-6-sol": { input: 172_300, cachedInput: 65_200, output: 9_220, reasoning: 1_600, total: 181_520 },
       },
     },
-    pricing: { value: 2.64, unavailableModels: [], version: "2026-08-23" },
+    pricing: { value: 2.33554, unavailableModels: [], version: "2026-10-05", catalogSource: "bundled" },
     updatedAt: Date.now(),
   };
+  result.pricing.breakdown = Object.entries(result.tokens.byModel).map(([model, usage]) => {
+    const cachedRate = model === "gpt-6.1-sol" ? 0.1 : 0.2;
+    const rates = { inputPerMillion: 2, cachedInputPerMillion: cachedRate, cacheWritePerMillion: 2.5, outputPerMillion: 10 };
+    const cached = Math.min(usage.input, usage.cachedInput ?? 0);
+    const inputValue = (usage.input - cached) * 2 / 1_000_000;
+    const cachedInputValue = cached * cachedRate / 1_000_000;
+    const outputValue = usage.output * 10 / 1_000_000;
+    return { model, usage, rates, value: inputValue + cachedInputValue + outputValue, inputValue, cachedInputValue, outputValue,
+      longContext: { inputThreshold: 272_000, rates: { ...rates, inputPerMillion: 4, cachedInputPerMillion: cachedRate * 2, cacheWritePerMillion: 5, outputPerMillion: 15 } } };
+  });
+  const dateKey = (date: Date) => [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("-");
+  const history = Array.from({ length: 365 }, (_, i) => {
+    const date = new Date(); date.setHours(12, 0, 0, 0); date.setDate(date.getDate() - (364 - i));
+    const scale = i === 364 ? 1 : (i % 7 === 5 || i % 7 === 6 ? 0.12 : 0.35 + ((i * 17) % 11) / 12);
+    const tokens = { ...result.tokens,
+      input: Math.round(result.tokens.input * scale), cachedInput: Math.round((result.tokens.cachedInput ?? 0) * scale),
+      output: Math.round(result.tokens.output * scale), reasoning: Math.round((result.tokens.reasoning ?? 0) * scale),
+      total: Math.round(result.tokens.total * scale), byModel: {} };
+    return { date: dateKey(date), tokens, pricing: { ...result.pricing, value: 2.33554 * scale } };
+  });
+  result.history = history;
+  return result;
 }
 
 export const bridge = {
@@ -69,6 +91,16 @@ export const bridge = {
   },
   async refresh(): Promise<DashboardStatus> {
     return isTauri() ? invoke("refresh_status") : demoStatus();
+  },
+  async getPricingStatus(): Promise<PricingCatalogStatus> {
+    return isTauri() ? invoke("get_pricing_status") : { version: "2026-10-05", catalogSource: "bundled" };
+  },
+  async syncPricing(): Promise<PricingCatalogStatus> {
+    return isTauri() ? invoke("refresh_pricing") : { version: "2026-10-05", catalogSource: "bundled", lastCheckedAt: Date.now() };
+  },
+  async testReminder(): Promise<void> {
+    if (isTauri()) await invoke("test_reset_notification");
+    else throw new Error("System notifications are available in the desktop app.");
   },
   async startLogin(): Promise<void> {
     if (isTauri()) {

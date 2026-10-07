@@ -41,6 +41,9 @@ pub struct Settings {
     pub startup_behavior: StartupBehavior,
     pub reduced_motion: bool,
     pub quota_window_minutes: Option<u64>,
+    pub reset_reminder_enabled: bool,
+    pub reset_reminder_minutes: u32,
+    pub auto_sync_pricing: bool,
     pub window_position: Option<WindowPosition>,
     pub surface_version: u8,
 }
@@ -62,6 +65,9 @@ impl Default for Settings {
             startup_behavior: StartupBehavior::Off,
             reduced_motion: false,
             quota_window_minutes: None,
+            reset_reminder_enabled: false,
+            reset_reminder_minutes: 15,
+            auto_sync_pricing: true,
             window_position: None,
             surface_version: 3,
         }

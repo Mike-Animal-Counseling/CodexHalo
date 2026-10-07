@@ -45,4 +45,33 @@ describe("SettingsSheet", () => {
     fireEvent.change(screen.getByRole("combobox", { name: "Startup behavior" }), { target: { value: "showWhenCodexStarts" } });
     expect(onChange).toHaveBeenCalledWith({ ...defaultSettings, startupBehavior: "showWhenCodexStarts" });
   });
+  it("supports a custom reset reminder lead and zero minutes at reset", () => {
+    const onChange = vi.fn();
+    render(<SettingsSheet settings={{ ...defaultSettings, resetReminderEnabled: true }} windows={windows} onChange={onChange} onDisable={vi.fn()} onClose={vi.fn()} />);
+    const lead = screen.getByRole("spinbutton", { name: "Minutes before reset" });
+    fireEvent.change(lead, { target: { value: "47" } });
+    fireEvent.blur(lead);
+    expect(onChange).toHaveBeenLastCalledWith({ ...defaultSettings, resetReminderEnabled: true, resetReminderMinutes: 47 });
+    fireEvent.change(lead, { target: { value: "0" } });
+    fireEvent.keyDown(lead, { key: "Enter" });
+    expect(onChange).toHaveBeenLastCalledWith({ ...defaultSettings, resetReminderEnabled: true, resetReminderMinutes: 0 });
+  });
+
+  it("bounds reminder lead and restores an empty draft", () => {
+    const onChange = vi.fn();
+    render(<SettingsSheet settings={{ ...defaultSettings, resetReminderEnabled: true }} windows={windows} onChange={onChange} onDisable={vi.fn()} onClose={vi.fn()} />);
+    const lead = screen.getByRole("spinbutton", { name: "Minutes before reset" });
+    fireEvent.change(lead, { target: { value: "99999" } }); fireEvent.blur(lead);
+    expect(onChange).toHaveBeenLastCalledWith({ ...defaultSettings, resetReminderEnabled: true, resetReminderMinutes: 10080 });
+    onChange.mockClear();
+    fireEvent.change(lead, { target: { value: "" } }); fireEvent.blur(lead);
+    expect(onChange).not.toHaveBeenCalled(); expect(lead).toHaveValue(15);
+  });
+
+  it("lets offline users disable automatic public price checks", () => {
+    const onChange = vi.fn();
+    render(<SettingsSheet settings={defaultSettings} windows={windows} onChange={onChange} onDisable={vi.fn()} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("switch", { name: /Update prices automatically/ }));
+    expect(onChange).toHaveBeenCalledWith({ ...defaultSettings, autoSyncPricing: false });
+  });
 });

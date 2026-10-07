@@ -7,6 +7,7 @@ license.workspace = true
 [dependencies]
 chrono.workspace = true
 codexhalo-shared = { path = "../shared" }
+serde.workspace = true
 serde_json.workspace = true
 walkdir = "2"
 zstd = "0.13"

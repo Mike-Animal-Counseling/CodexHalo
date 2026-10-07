@@ -1,8 +1,10 @@
 {
   "name": "codex-halo",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
-  "workspaces": ["apps/desktop"],
+  "workspaces": [
+    "apps/desktop"
+  ],
   "scripts": {
     "dev": "npm run dev --workspace apps/desktop",
     "build": "npm run build --workspace apps/desktop",
@@ -11,5 +13,7 @@
     "test": "npm run test --workspace apps/desktop",
     "tauri": "npm run tauri --workspace apps/desktop"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  }
 }

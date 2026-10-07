@@ -1,3 +1,4 @@
+import type { UsageHistoryDay } from "./lib/history";
 export type ThemeMode = "system" | "light" | "dark";
 export type HudStyle = "capsule" | "halo";
 export type VisibilityMode = "always" | "autoHide" | "tray";
@@ -23,11 +24,38 @@ export interface TokenUsage extends ModelUsage {
   byModel: Record<string, ModelUsage>;
 }
 
-export interface PricingEstimate {
+export interface ModelPricing {
+  inputPerMillion: number;
+  cachedInputPerMillion?: number | null;
+  cacheWritePerMillion?: number | null;
+  outputPerMillion: number;
+}
+export interface ModelEstimate {
+  model: string;
+  usage: ModelUsage;
+  rates?: ModelPricing;
+  longContext?: { inputThreshold: number; rates: ModelPricing };
+  value?: number;
+  inputValue?: number;
+  cachedInputValue?: number;
+  outputValue?: number;
+}
+export interface PricingCatalogStatus {
+  version: string;
+  publishedAt?: string;
+  sourceUrl?: string;
+  catalogSource?: "bundled" | "cached" | "remote";
+  lastCheckedAt?: number;
+  lastUpdatedAt?: number;
+  refreshError?: string;
+}
+export interface PricingEstimate extends PricingCatalogStatus {
   value?: number;
   unavailableModels: string[];
   estimatedModels?: string[];
-  version: string;
+  incomplete?: boolean;
+  breakdown?: ModelEstimate[];
+  assumptions?: string[];
 }
 
 export interface DashboardStatus {
@@ -35,6 +63,7 @@ export interface DashboardStatus {
   windows: RateLimitWindow[];
   tokens: TokenUsage;
   pricing: PricingEstimate;
+  history?: UsageHistoryDay[];
   updatedAt?: number;
   message?: string;
   preview?: boolean;
@@ -55,6 +84,9 @@ export interface Settings {
   startupBehavior: StartupBehavior;
   reducedMotion: boolean;
   quotaWindowMinutes: number | null;
+  resetReminderEnabled: boolean;
+  resetReminderMinutes: number;
+  autoSyncPricing: boolean;
   surfaceVersion: number;
 }
 
@@ -73,6 +105,9 @@ export const defaultSettings: Settings = {
   startupBehavior: "off",
   reducedMotion: false,
   quotaWindowMinutes: null,
+  resetReminderEnabled: false,
+  resetReminderMinutes: 15,
+  autoSyncPricing: true,
   surfaceVersion: 3,
 };
 

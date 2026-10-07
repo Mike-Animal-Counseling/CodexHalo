@@ -5,6 +5,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "privacy-public-text.ps1")
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $nsisRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot "target\release\bundle\nsis"))
 
@@ -57,7 +58,8 @@ function Test-ReleaseFile([IO.FileInfo]$File) {
         [pscustomobject]@{ Value = "BEGIN PRIVATE KEY"; Label = "private key material" }
     )
     foreach ($needle in $needles) {
-        Assert-NeedleAbsent $text $needle.Value $needle.Label $File.FullName
+        $checkedText = if ($needle.Label -eq 'developer username') { Remove-PublicReleaseAttributions $text } else { $text }
+        Assert-NeedleAbsent $checkedText $needle.Value $needle.Label $File.FullName
     }
     if ($text -match "(?i)sk-[a-z0-9_-]{20,}") {
         throw "Privacy verification found API-key-shaped material in $($File.FullName)"

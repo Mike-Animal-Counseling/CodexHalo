@@ -24,12 +24,25 @@ and token fields. Other payload fields may transiently exist in parser memory
 while a JSON record is decoded, but CodexHalo does not retain, persist, log, or
 upload prompt/conversation content.
 
-CodexHalo has no telemetry, analytics, updater, or developer-controlled network
-service. The official Codex process may connect to OpenAI after consent. The
+CodexHalo has no telemetry, analytics, or executable updater. With Codex access
+and automatic price updates enabled, Rust downloads a public JSON catalog from
+a fixed GitHub raw URL at most daily. A manual check is available. No Codex
+usage, model identities, account data, prompts, or credentials are included in
+that request. HTTPS, no redirects, a timeout, a bounded body, and strict catalog
+validation protect the download; invalid or offline responses retain local
+prices. See [pricing behavior](pricing.md). The official Codex process may
+connect to OpenAI after consent. The
 NSIS installer may use Microsoft's official WebView2 bootstrapper if WebView2
 is missing. Show when Codex starts performs a lightweight process-name and
 executable-path check; it does not inspect process command lines, content, or
 memory.
+
+Historical usage stays in memory and is derived from the same local session
+files. Cached history is cleared on disable; an in-flight result is discarded
+when its consent generation changes. Reset reminder settings default to off;
+reminders run in Rust while the HUD is hidden and require the app to stay open.
+Only reset-cycle identifiers and timestamps are saved for reminder deduplication.
+Windows controls delivery; installed apps use the CodexHalo notification identity.
 
 Hidden and edge-retracted states remain recoverable through the tray and global
 shortcut. The explicit HUD close control hides the native window rather than

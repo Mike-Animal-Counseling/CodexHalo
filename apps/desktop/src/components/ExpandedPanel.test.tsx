@@ -118,12 +118,12 @@ describe("ExpandedPanel quota windows", () => {
           "gpt-5.7-example": { input: 500_000, cachedInput: 0, output: 0, reasoning: 0, total: 500_000 },
         },
       },
-      pricing: { value: 0, unavailableModels: ["gpt-5.7-example"], version: "test" },
+      pricing: { unavailableModels: ["gpt-5.7-example"], version: "test", incomplete: true },
     };
     render(<ExpandedPanel status={futureStatus} refreshing={false} reducedMotion={false} onRefresh={vi.fn()} onSettings={vi.fn()} />);
     expect(screen.getByText("gpt-5.7-example")).toBeInTheDocument();
     expect(screen.queryByText(/unclassified/i)).not.toBeInTheDocument();
-    expect(screen.getByText("≈ $0.00")).toBeInTheDocument();
+    expect(screen.getByText("Unavailable")).toBeInTheDocument();
     fireEvent.mouseEnter(screen.getByRole("button", { name: /API equivalent/i }));
     expect(screen.getByText(/Excludes models without a published price: gpt-5.7-example/)).toBeInTheDocument();
   });

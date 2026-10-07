@@ -1,9 +1,40 @@
-use std::{env, path::PathBuf};
-use chrono::Utc;
+use std::{env, path::PathBuf, sync::Mutex, time::{Instant, Duration}};
+use chrono::{Local, NaiveDate, Utc};
 use codexhalo_codex_client::{read_quota, CodexClientError, QuotaRead};
-use codexhalo_pricing::{estimate, PricingEstimate};
+use codexhalo_pricing::{estimate, estimate_with_snapshot, catalog_snapshot, CatalogSnapshot, PricingEstimate};
 use codexhalo_shared::{RateLimitWindow, TokenUsage};
 use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageHistoryDay {
+    pub date: String,
+    pub tokens: TokenUsage,
+    pub pricing: PricingEstimate,
+}
+
+struct HistoryCache {
+    date: NaiveDate,
+    loaded: Instant,
+    days: Vec<codexhalo_token_usage::DailyTokenUsage>,
+}
+static HISTORY: Mutex<Option<HistoryCache>> = Mutex::new(None);
+
+pub fn clear_history_cache() {
+    if let Ok(mut cache) = HISTORY.try_lock() { *cache = None; }
+}
+
+fn history(home: &std::path::Path, today: NaiveDate, tokens: &TokenUsage, snapshot: &CatalogSnapshot) -> Result<Vec<UsageHistoryDay>, String> {
+    let mut cache = HISTORY.lock().map_err(|error| error.to_string())?;
+    if cache.as_ref().is_none_or(|cached| cached.date != today || cached.loaded.elapsed() > Duration::from_secs(300)) {
+        let days = codexhalo_token_usage::aggregate_codex_home_history(home, today)?;
+        *cache = Some(HistoryCache { date: today, loaded: Instant::now(), days });
+    }
+    Ok(cache.as_ref().unwrap().days.iter().map(|day| {
+        let tokens = if day.date == today.to_string() { tokens.clone() } else { day.tokens.clone() };
+        UsageHistoryDay { date: day.date.clone(), pricing: estimate_with_snapshot(&tokens, snapshot), tokens }
+    }).collect())
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -12,6 +43,8 @@ pub struct DashboardStatus {
     pub windows: Vec<RateLimitWindow>,
     pub tokens: TokenUsage,
     pub pricing: PricingEstimate,
+    #[serde(default)]
+    pub history: Vec<UsageHistoryDay>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -29,6 +62,7 @@ impl DashboardStatus {
             windows: Vec::new(),
             tokens: TokenUsage::default(),
             pricing: estimate(&TokenUsage::default()),
+            history: Vec::new(),
             updated_at: None,
             message: None,
         }
@@ -51,6 +85,7 @@ fn disconnected_status() -> DashboardStatus {
         windows: Vec::new(),
         tokens: TokenUsage::default(),
         pricing: estimate(&TokenUsage::default()),
+        history: Vec::new(),
         updated_at: None,
         message: Some("Codex isn't connected yet".into()),
     }
@@ -77,19 +112,29 @@ pub async fn refresh(enabled: bool) -> Result<DashboardStatus, String> {
                 windows: Vec::new(),
                 tokens: TokenUsage::default(),
                 pricing: estimate(&TokenUsage::default()),
+                history: Vec::new(),
                 updated_at: None,
                 message: Some("Sign in through Codex to read quota.".into()),
             });
         }
         QuotaRead::Authenticated(windows) => windows,
     };
-    let tokens = codexhalo_token_usage::aggregate_codex_home_today(&codex_home()?)?;
-    let pricing = estimate(&tokens);
+    let home = codex_home()?;
+    let snapshot = catalog_snapshot();
+    let worker_snapshot = snapshot.clone();
+    let (tokens, history) = tauri::async_runtime::spawn_blocking(move || {
+        let today = Local::now().date_naive();
+        let tokens = codexhalo_token_usage::aggregate_codex_home_day(&home, today)?;
+        let history = history(&home, today, &tokens, &worker_snapshot)?;
+        Ok::<_, String>((tokens, history))
+    }).await.map_err(|error| error.to_string())??;
+    let pricing = estimate_with_snapshot(&tokens, &snapshot);
     Ok(DashboardStatus {
         connection: ConnectionState::Ready,
         windows,
         tokens,
         pricing,
+        history,
         updated_at: Some(Utc::now().timestamp_millis()),
         message: None,
     })
