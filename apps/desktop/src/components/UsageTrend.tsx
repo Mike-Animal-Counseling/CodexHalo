@@ -88,6 +88,12 @@ export function UsageTrend({ history, reducedMotion = false, showApiEquivalent =
       <div className="usage-trend__detail" aria-live="polite" aria-atomic="true">
         <span>{bucketLabel(activeBucket)}</span><strong>{compactNumber(activeBucket.tokens.total)} tokens</strong>
       </div>
+      <dl className="usage-trend__tokens" aria-label="Selected period token breakdown">
+        <div><dt>Input</dt><dd>{compactNumber(activeBucket.tokens.input)}</dd></div>
+        <div><dt>Cached</dt><dd>{compactNumber(activeBucket.tokens.cachedInput ?? 0)}</dd></div>
+        <div><dt>Output</dt><dd>{compactNumber(activeBucket.tokens.output)}</dd></div>
+      </dl>
+      <p className="usage-trend__note">Local session history.{showApiEquivalent ? " Values use current catalog prices." : ""}</p>
     </>}
   </section>;
 }

@@ -64,7 +64,8 @@ describe("ExpandedPanel quota windows", () => {
       ],
     };
     const { container } = render(<ExpandedPanel status={future} refreshing={false} reducedMotion={false} onRefresh={vi.fn()} onSettings={vi.fn()} />);
-    expect(container.querySelectorAll(".quota-stack > .quota-row")).toHaveLength(3);
+    expect(container.querySelectorAll(".quota-stack > .quota-row")).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "Next quota windows" }));
     expect(screen.getByRole("region", { name: "1 hour quota" })).toBeInTheDocument();
     expect(container.querySelector(".panel")).toHaveClass("panel--many-quotas");
   });
@@ -137,5 +138,36 @@ describe("ExpandedPanel quota windows", () => {
     render(<ExpandedPanel status={emptyStatus} refreshing={false} reducedMotion={false} onRefresh={vi.fn()} onSettings={vi.fn()} />);
     expect(screen.getByText("≈ $0.00")).toBeInTheDocument();
     expect(screen.queryByText("Unavailable")).not.toBeInTheDocument();
+  });
+
+  it("opens History through its icon and returns focus to the overview action", () => {
+    render(<ExpandedPanel status={status} refreshing={false} reducedMotion={false} onRefresh={vi.fn()} onSettings={vi.fn()} />);
+    expect(screen.queryByRole("region", { name: "Usage history" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "History" }));
+    expect(screen.getByRole("dialog", { name: "CodexHalo history" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "History" })).toHaveFocus();
+    expect(screen.getByText("Use Codex to start your activity history.")).toBeInTheDocument();
+    expect(screen.queryByText("Today")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Back to overview" }));
+    expect(screen.getByText("Today")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "History" })).toHaveFocus();
+  });
+
+  it("keeps price details on their own page and shows the catalog version", () => {
+    render(<ExpandedPanel status={status} refreshing={false} reducedMotion={false} onRefresh={vi.fn()} onSettings={vi.fn()} />);
+    expect(screen.queryByRole("region", { name: "Token prices" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Token pricing" }));
+    expect(screen.getByRole("dialog", { name: "CodexHalo pricing" })).toBeInTheDocument();
+    expect(screen.getByText("test")).toBeInTheDocument();
+    expect(screen.getByText("API estimate only. Your subscription is unchanged.")).toBeInTheDocument();
+    expect(screen.queryByText(/Cost =/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Back to overview" }));
+    expect(screen.getByRole("button", { name: "Token pricing" })).toHaveFocus();
+  });
+
+  it("hides the overview API value when the estimate preference is off", () => {
+    render(<ExpandedPanel status={status} refreshing={false} reducedMotion={false} showApiEquivalent={false} onRefresh={vi.fn()} onSettings={vi.fn()} />);
+    expect(screen.getByText("Today")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /API equivalent/ })).not.toBeInTheDocument();
   });
 });

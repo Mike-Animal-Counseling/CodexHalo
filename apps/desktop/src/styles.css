@@ -612,16 +612,15 @@ button:focus-visible { outline: 2px solid var(--halo); outline-offset: 2px; }
   .floating-orb__surface::before { animation: none !important; }
 }
 
-/* Details stay within the native HUD; secondary history and settings scroll. */
-.panel--dashboard, .settings-sheet { display: flex; flex-direction: column; }
+/* Independent pages share the fixed native HUD. Long details scroll without a track. */
+.panel--dashboard, .panel--subpage, .settings-sheet { display: flex; flex-direction: column; }
 .panel--dashboard > .panel-header { flex-shrink: 0; margin-bottom: 10px; }
 .panel-content, .settings-content {
-  flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain;
-  scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--halo) 25%, transparent) transparent;
-  padding: 0 3px 3px 0;
+  flex: 1; min-height: 0; overflow: hidden;
+  scrollbar-width: none;
+  padding: 0;
 }
-.panel-content::-webkit-scrollbar, .settings-content::-webkit-scrollbar { width: 3px; }
-.panel-content::-webkit-scrollbar-thumb, .settings-content::-webkit-scrollbar-thumb { border-radius: 3px; background: color-mix(in srgb, var(--halo) 25%, transparent); }
+.panel-content::-webkit-scrollbar, .settings-content::-webkit-scrollbar { display: none; }
 .panel-content > .usage-trend { margin-top: 0; }
 .settings-sheet > header { flex-shrink: 0; }
 .settings-content .settings-label:first-child { margin-top: 4px; }
@@ -657,3 +656,67 @@ button:focus-visible { outline: 2px solid var(--halo); outline-offset: 2px; }
 :root[data-resolved-theme="light"] .api-value > strong,
 :root[data-resolved-theme="light"] .settings-inline-action,
 :root[data-resolved-theme="light"] .model-price b { color: #056b75; text-shadow: none; }
+
+.panel-header nav[aria-label="Dashboard actions"] { gap: 3px; }
+.panel-header nav[aria-label="Dashboard actions"] .panel-icon { width: 24px; height: 24px; }
+.panel--dashboard .panel-identity span { font-size: 10px; }
+.panel--dashboard .token-box { margin-top: 10px; }
+.panel--dashboard .panel-stat { min-height: 19px; font-size: 12px; }
+.pricing-entry { width: 100%; margin-top: 8px; padding: 7px 0 1px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--glass-border); background: transparent; color: var(--muted); font-size: 11px; cursor: pointer; }
+.pricing-entry svg { transform: rotate(-90deg); }
+.pricing-entry:hover { color: var(--text); }
+.panel-page-header { display: flex; align-items: center; gap: 10px; flex-shrink: 0; margin-bottom: 16px; }
+.panel-page-header > div { flex: 1; min-width: 0; }
+.panel-page-header h2 { margin: 0; font-size: 15px; font-weight: 580; letter-spacing: -.025em; }
+.panel-page-header h2:focus { outline: none; }
+.panel-page-header span { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+.panel--history .usage-trend { padding: 0; border: 0; margin: 0; }
+.panel--history .usage-trend__chart { height: 112px; margin-top: 14px; }
+.panel--history .usage-trend__summary { margin-top: 15px; }
+.panel--history .usage-trend__summary strong { font-size: 23px; }
+.panel--history .usage-trend__summary .usage-trend__cost strong { font-size: 14px; line-height: 29px; }
+.panel--history .usage-trend__detail { margin-top: 15px; font-size: 10px; }
+.panel--pricing .pricing-details { margin: 0; padding: 0; border: 0; }
+.panel--pricing .pricing-details > p:first-child { margin-top: 0; }
+.panel--subpage .panel-content { animation: settings-swap 180ms cubic-bezier(.22, 1, .36, 1) both; }
+
+.panel--dashboard > .panel-header { margin-bottom: 8px; }
+.panel--dashboard .panel-divider { margin: 8px 0; }
+.panel--dashboard .model-list { margin-top: 7px; }
+.model-list__header, .quota-page-label, .pricing-page-label { display: flex; align-items: center; justify-content: space-between; min-height: 18px; gap: 5px; }
+.model-list__header > p, .quota-page-label > span, .pricing-page-label > span { margin: 0; color: var(--faint); font-size: 10px; }
+.model-list__header { margin-bottom: 3px; }
+.page-controls { display: flex; align-items: center; gap: 4px; }
+.page-controls button { width: 17px; height: 17px; padding: 0; display: grid; place-items: center; border-radius: 5px; background: var(--glass-soft); color: var(--muted); cursor: pointer; }
+.page-controls button:last-child svg { transform: rotate(180deg); }
+.page-controls button:disabled { opacity: .3; cursor: default; }
+.page-controls span { color: var(--faint); font: 9px "Cascadia Mono", Consolas, monospace; }
+.pricing-details { height: 100%; display: flex; flex-direction: column; }
+.pricing-page-label { flex-shrink: 0; margin-bottom: 4px; }
+.panel--pricing .model-price { padding: 12px 0; }
+.panel--pricing .model-price > div { font-size: 11px; }
+.panel--pricing .model-price strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.panel--pricing .model-price dl { margin: 12px 0 0; }
+.panel--pricing .model-price dd { font-size: 13px; }
+.pricing-footer { margin-top: auto; padding-top: 9px; border-top: 1px solid var(--glass-border); }
+.pricing-footer p { margin: 0 0 9px; font-size: 10px; line-height: 1.45; }
+.pricing-footer > div { display: flex; justify-content: space-between; gap: 8px; color: var(--faint); font-size: 9px; }
+.pricing-footer b { font: 9px "Cascadia Mono", Consolas, monospace; }
+.settings-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; padding: 3px; margin: 10px 0; border-radius: 9px; background: var(--glass-soft); flex-shrink: 0; }
+.settings-tabs button { padding: 6px 3px; border-radius: 6px; background: transparent; color: var(--muted); font-size: 10px; cursor: pointer; }
+.settings-tabs button[aria-pressed="true"] { color: var(--text); background: var(--glass-border); }
+.settings-content[data-page="general"] .settings-label { margin-top: 3px; }
+.settings-content[data-page="general"] .mode-list > button { height: 29px; }
+.settings-content[data-page="general"] .settings-switch-row { height: 34px; margin-top: 5px; }
+.settings-content[data-page="general"] .settings-appearance,
+.settings-content[data-page="general"] .settings-quota-focus,
+.settings-content[data-page="general"] .settings-startup { height: 31px; margin-top: 5px; }
+.settings-content[data-page="general"] .settings-shortcut { margin-top: 7px; }
+.settings-content[data-page="general"] .settings-disable { margin-top: 7px; }
+
+.settings-content[data-page="general"] .mode-list { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.settings-content[data-page="general"] .mode-list > button { height: 34px; padding: 4px; display: grid; place-items: center; text-align: center; }
+.settings-content[data-page="general"] .mode-list strong { font-size: 10px; font-weight: 550; }
+.settings-content[data-page="general"] .mode-list i,
+.settings-content[data-page="general"] .mode-list small { display: none; }
+.settings-quota-focus select { width: 132px; height: 24px; padding: 0 7px; border: 0; border-radius: 7px; background: color-mix(in srgb, var(--text) 7%, transparent); color: var(--text); font: 500 10px "Segoe UI Variable Text", sans-serif; cursor: pointer; }

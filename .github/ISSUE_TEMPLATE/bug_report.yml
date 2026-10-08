@@ -1,0 +1,67 @@
+name: Bug report
+description: Report a reproducible problem in CodexHalo.
+title: "[Bug]: "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve CodexHalo. Search existing issues first.
+        Do not include credentials, auth.json, raw Codex sessions, prompts,
+        account details, or full personal paths. Sanitize any screenshot or error text.
+        Report security vulnerabilities privately using [SECURITY.md](https://github.com/Mike-Animal-Counseling/CodexHalo/blob/main/SECURITY.md).
+  - type: input
+    id: app_version
+    attributes:
+      label: CodexHalo version
+      description: Include the release version or source commit if you built it yourself.
+      placeholder: "v1.1.0"
+    validations:
+      required: true
+  - type: input
+    id: windows_version
+    attributes:
+      label: Windows version and architecture
+      placeholder: "Windows 11, x64"
+    validations:
+      required: true
+  - type: dropdown
+    id: install_type
+    attributes:
+      label: How are you running CodexHalo?
+      options:
+        - GitHub release installer
+        - Built from source
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Describe the actions that reliably trigger the problem.
+      placeholder: |
+        1. Open CodexHalo.
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should happen?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happens instead? Include sanitized error text if helpful.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context or sanitized screenshots
+      description: If relevant, mention display scale, multiple monitors, or whether you use the Codex CLI, VS Code extension, or desktop app. Remove private data before attaching anything.

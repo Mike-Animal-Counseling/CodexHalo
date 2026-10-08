@@ -5,7 +5,7 @@ import { shouldRetractEdge } from "./lib/edgeHide";
 import { defaultSettings, emptyUsage, type DashboardStatus, type Settings } from "./types";
 import { FloatingOrb } from "./components/FloatingOrb";
 import { EdgeRevealHandle } from "./components/EdgeRevealHandle";
-import { ExpandedPanel } from "./components/ExpandedPanel";
+import { ExpandedPanel, type PanelPage } from "./components/ExpandedPanel";
 import { SettingsSheet } from "./components/SettingsSheet";
 import { Onboarding } from "./components/Onboarding";
 import { CompactHandoff } from "./components/CompactHandoff";
@@ -32,6 +32,7 @@ function MainApp() {
   const [layout, setLayout] = useState<SurfaceLayout>(defaultLayout);
   const [surfaceReflow, setSurfaceReflow] = useState<SurfaceReflow>();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [panelPage, setPanelPage] = useState<PanelPage>("overview");
   const [refreshing, setRefreshing] = useState(false);
   const [edgeHidden, setEdgeHidden] = useState(false);
   const [surfacePending, setSurfacePending] = useState(false);
@@ -207,6 +208,7 @@ function MainApp() {
     if (surfaceBusyRef.current) return;
     surfaceBusyRef.current = true;
     cancelHide();
+    setPanelPage("overview");
     setEdgeHidden(false); setSettingsOpen(openSettings); setSurfacePending(true);
     await afterNextPaint();
     try {
@@ -265,11 +267,11 @@ function MainApp() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      if (settingsOpen) setSettingsOpen(false); else closePanel();
+      if (settingsOpen) setSettingsOpen(false); else if (panelPage !== "overview") setPanelPage("overview"); else closePanel();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [settingsOpen, closePanel]);
+  }, [settingsOpen, panelPage, closePanel]);
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -453,7 +455,7 @@ function MainApp() {
         {settingsOpen
           ? <SettingsSheet settings={settings} windows={status.windows} onChange={updateSettings} onDisable={disable} onClose={() => setSettingsOpen(false)}
               onSyncPricing={syncPricing} onTestReminder={bridge.testReminder} pricingStatus={pricingStatus} />
-          : <ExpandedPanel status={status} refreshing={refreshing} reducedMotion={reducedMotion} quotaWindowMinutes={settings.quotaWindowMinutes} showApiEquivalent={settings.showApiEquivalent} onRefresh={refresh} onSettings={() => setSettingsOpen(true)} />}
+          : <ExpandedPanel page={panelPage} onNavigate={setPanelPage} status={status} refreshing={refreshing} reducedMotion={reducedMotion} quotaWindowMinutes={settings.quotaWindowMinutes} showApiEquivalent={settings.showApiEquivalent} onRefresh={refresh} onSettings={() => setSettingsOpen(true)} />}
       </div>
       <div className={`expanded-orb expanded-orb--join-${capsuleJoin} ${phase === "open" || phase === "closing" ? "is-open" : ""} ${phase === "closing" ? "is-closing" : ""}`} style={{ left: activeLayout.orbX, top: activeLayout.orbY }}>
         <FloatingOrb status={status} refreshing={refreshing} reducedMotion={reducedMotion} dragging={dragging}

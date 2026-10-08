@@ -1,0 +1,34 @@
+name: Feature request
+description: Suggest an improvement to CodexHalo.
+title: "[Feature]: "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search existing issues first. Describe the problem and the intended experience.
+        Do not include private account data, prompts, usage records, or credentials.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Explain the workflow or difficulty you want to improve.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe what you would like CodexHalo to do and how you would use it.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Include any existing workaround or other approach you considered.
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Sanitized mockups or examples are welcome.

@@ -40,3 +40,9 @@ export function InfoIcon({ size = 14, className }: IconProps) {
     <path d="M12 11v5M12 8.2v.2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
   </svg>;
 }
+
+export function HistoryIcon({ size = 16, className }: IconProps) {
+  return <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M3 11a9 9 0 1 1 2.7 7.4M3 5v6h6M12 7v5l3 2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>;
+}

@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Windows validation
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      RUSTUP_TOOLCHAIN: stable
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install locked frontend dependencies
+        run: npm ci
+      - name: Run frontend tests
+        run: npm test
+      - name: Build frontend and check TypeScript
+        run: npm run build
+      - name: Test official pricing parser
+        run: node --test scripts/update-pricing.test.mjs
+      - name: Test public attribution privacy rules
+        shell: pwsh
+        run: ./scripts/privacy-public-text.test.ps1
+      - name: Install stable Rust
+        run: rustup toolchain install stable --profile minimal
+      - name: Run Rust workspace tests
+        run: cargo test --workspace --locked

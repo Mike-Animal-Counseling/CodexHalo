@@ -28,3 +28,8 @@
 .usage-trend__empty { margin: 11px 0 2px; color: var(--muted); font-size: 10px; line-height: 1.5; }
 .usage-trend--still *, :root[data-motion="reduced"] .usage-trend * { transition: none !important; }
 @media (prefers-reduced-motion: reduce) { .usage-trend * { transition: none !important; } }
+
+.usage-trend__tokens { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 13px 0 0; padding: 11px 0; border-top: 1px solid var(--glass-border); border-bottom: 1px solid var(--glass-border); }
+.usage-trend__tokens dt { color: var(--muted); font-size: 9px; }
+.usage-trend__tokens dd { margin: 4px 0 0; color: var(--text); font: 11px "Cascadia Mono", Consolas, monospace; }
+.usage-trend__note { margin: 10px 0 0; color: var(--faint); font-size: 9px; line-height: 1.5; }
