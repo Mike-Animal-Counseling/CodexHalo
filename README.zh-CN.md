@@ -8,7 +8,7 @@
     &nbsp;·&nbsp; <a href="CONTRIBUTING.md">参与贡献</a>
     &nbsp;·&nbsp; <a href="README.md">English</a>
   </p>
-  <img src="docs/assets/codexhalo-preview.svg" width="900" alt="CodexHalo 胶囊平滑展开为最新总览界面，使用合成演示数据">
+  <img src="docs/assets/codexhalo-preview.svg" width="900" alt="CodexHalo 高清功能演示：额度、历史趋势、重置提醒、Token 价格、价格更新和边缘隐藏恢复，使用合成数据">
 </div>
 
 [![CI](https://github.com/Mike-Animal-Counseling/CodexHalo/actions/workflows/ci.yml/badge.svg)](https://github.com/Mike-Animal-Counseling/CodexHalo/actions/workflows/ci.yml)

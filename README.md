@@ -8,7 +8,7 @@
     &nbsp;&middot;&nbsp; <a href="CONTRIBUTING.md">Contribute</a>
     &nbsp;&middot;&nbsp; <a href="README.zh-CN.md">&#31616;&#20307;&#20013;&#25991;</a>
   </p>
-  <img src="docs/assets/codexhalo-preview.svg" width="900" alt="CodexHalo capsule smoothly expands into the current overview using synthetic demo data">
+  <img src="docs/assets/codexhalo-preview.svg" width="900" alt="High-resolution CodexHalo walkthrough: quota, history trends, reset reminders, token pricing, price updates, and edge hide/reveal using synthetic data">
 </div>
 
 [![CI](https://github.com/Mike-Animal-Counseling/CodexHalo/actions/workflows/ci.yml/badge.svg)](https://github.com/Mike-Animal-Counseling/CodexHalo/actions/workflows/ci.yml)
