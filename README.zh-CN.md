@@ -8,7 +8,7 @@
     &nbsp;·&nbsp; <a href="CONTRIBUTING.md">参与贡献</a>
     &nbsp;·&nbsp; <a href="README.md">English</a>
   </p>
-  <img src="docs/assets/codexhalo-demo.gif" width="780" alt="CodexHalo 总览、独立 History 页面和分组设置，使用合成演示数据">
+  <img src="docs/assets/codexhalo-preview.svg" width="900" alt="CodexHalo 胶囊平滑展开为最新总览界面，使用合成演示数据">
   <p><a href="https://github.com/Mike-Animal-Counseling/CodexHalo/releases/download/v1.1.1/CodexHalo-demo.mp4">观看演示视频</a> · 演示使用合成数据。</p>
 </div>
 

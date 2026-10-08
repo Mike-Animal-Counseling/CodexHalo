@@ -8,7 +8,7 @@
     &nbsp;&middot;&nbsp; <a href="CONTRIBUTING.md">Contribute</a>
     &nbsp;&middot;&nbsp; <a href="README.zh-CN.md">&#31616;&#20307;&#20013;&#25991;</a>
   </p>
-  <img src="docs/assets/codexhalo-demo.gif" width="780" alt="CodexHalo overview, separate History page, and compact settings using synthetic demo data">
+  <img src="docs/assets/codexhalo-preview.svg" width="900" alt="CodexHalo capsule smoothly expands into the current overview using synthetic demo data">
   <p><a href="https://github.com/Mike-Animal-Counseling/CodexHalo/releases/download/v1.1.1/CodexHalo-demo.mp4">Watch the demo video</a> &middot; Demo uses synthetic data.</p>
 </div>
 

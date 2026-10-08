@@ -31,7 +31,9 @@ release. See [pricing maintenance](pricing.md).
    using synthetic data only. Show changed behavior such as navigation, history,
    edge reveal, or settings; do not expose real usage, conversations, usernames,
    or machine paths. Identify a browser preview as a demo rather than a native
-   Windows test.
+   Windows test. Keep the README hero in the animated SVG with
+   2x PNG captures so small text stays sharp. If using a GIF, encode it at least
+   as wide as its README display size; never enlarge a smaller export.
 
 ## Validate and build
 
