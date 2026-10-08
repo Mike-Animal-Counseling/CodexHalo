@@ -8,7 +8,7 @@ use std::{
 use codexhalo_shared::RateLimitWindow;
 use serde_json::{json, Value};
 use thiserror::Error;
-use tokio::{io::{AsyncBufReadExt, AsyncWriteExt, BufReader}, process::{Child, ChildStdin, ChildStdout, Command}, time::{timeout, Duration}};
+use tokio::{io::{AsyncBufRead, AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader}, process::{Child, ChildStdin, ChildStdout, Command}, time::{timeout, Duration}};
 
 #[derive(Debug, Error)]
 pub enum CodexClientError {
@@ -65,18 +65,45 @@ impl AppServer {
     async fn notify(&mut self, method: &str, params: Option<Value>) -> Result<(), CodexClientError> {
         let mut message = json!({ "method": method });
         if let Some(params) = params { message["params"] = params; }
-        self.write(&message).await
+        timeout(RPC_TIMEOUT, write_message(&mut self.input, &message))
+            .await.map_err(|_| CodexClientError::Timeout)?
     }
 
     async fn rpc(&mut self, method: &str, params: Value) -> Result<Value, CodexClientError> {
         let id = self.next_id;
         self.next_id += 1;
-        self.write(&json!({ "id": id, "method": method, "params": params })).await?;
+        exchange(&mut self.input, &mut self.output, id, method, params, RPC_TIMEOUT).await
+    }
+}
+
+const RPC_TIMEOUT: Duration = Duration::from_secs(15);
+const MAX_RESPONSE_LINE_BYTES: u64 = 1024 * 1024;
+
+async fn write_message(input: &mut (impl AsyncWrite + Unpin), value: &Value) -> Result<(), CodexClientError> {
+    let mut message = serde_json::to_vec(value).map_err(|error| CodexClientError::Protocol(error.to_string()))?;
+    message.push(b'\n');
+    input.write_all(&message).await.map_err(|error| CodexClientError::Protocol(error.to_string()))?;
+    input.flush().await.map_err(|error| CodexClientError::Protocol(error.to_string()))
+}
+
+async fn exchange(
+    input: &mut (impl AsyncWrite + Unpin),
+    output: &mut (impl AsyncBufRead + Unpin),
+    id: u64,
+    method: &str,
+    params: Value,
+    deadline: Duration,
+) -> Result<Value, CodexClientError> {
+    // One budget includes the write and all intervening notifications.
+    timeout(deadline, async {
+        write_message(input, &json!({ "id": id, "method": method, "params": params })).await?;
         loop {
             let mut line = String::new();
-            let bytes = timeout(Duration::from_secs(15), self.output.read_line(&mut line))
-                .await.map_err(|_| CodexClientError::Timeout)?
-                .map_err(|error| CodexClientError::Protocol(error.to_string()))?;
+            let bytes = (&mut *output).take(MAX_RESPONSE_LINE_BYTES + 1).read_line(&mut line)
+                .await.map_err(|error| CodexClientError::Protocol(error.to_string()))?;
+            if bytes as u64 > MAX_RESPONSE_LINE_BYTES {
+                return Err(CodexClientError::Protocol("Response line exceeds the safe limit".into()));
+            }
             if bytes == 0 { return Err(CodexClientError::Closed); }
             let Ok(value) = serde_json::from_str::<Value>(&line) else { continue };
             if value.get("id").and_then(Value::as_u64) != Some(id) { continue; }
@@ -85,14 +112,7 @@ impl AppServer {
             }
             return Ok(value.get("result").cloned().unwrap_or(Value::Null));
         }
-    }
-
-    async fn write(&mut self, value: &Value) -> Result<(), CodexClientError> {
-        let mut message = serde_json::to_vec(value).map_err(|error| CodexClientError::Protocol(error.to_string()))?;
-        message.push(b'\n');
-        self.input.write_all(&message).await.map_err(|error| CodexClientError::Protocol(error.to_string()))?;
-        self.input.flush().await.map_err(|error| CodexClientError::Protocol(error.to_string()))
-    }
+    }).await.map_err(|_| CodexClientError::Timeout)?
 }
 
 fn executable() -> Result<PathBuf, CodexClientError> {
@@ -314,6 +334,48 @@ fn window_priority(key: &str) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test(start_paused = true)]
+    async fn notifications_do_not_extend_the_request_deadline() {
+        let (client, mut server) = tokio::io::duplex(4096);
+        let (reader, mut writer) = tokio::io::split(client);
+        let producer = tokio::spawn(async move {
+            loop {
+                if server.write_all(b"{\"method\":\"notice\"}\n").await.is_err() { break; }
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+        });
+        let start = tokio::time::Instant::now();
+        let result = exchange(&mut writer, &mut BufReader::new(reader), 1, "test", Value::Null, RPC_TIMEOUT).await;
+        assert!(matches!(result, Err(CodexClientError::Timeout)));
+        assert_eq!(start.elapsed(), RPC_TIMEOUT);
+        producer.abort();
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn silent_response_and_blocked_write_are_bounded() {
+        for capacity in [1, 4096] {
+            let (client, _server) = tokio::io::duplex(capacity);
+            let (reader, mut writer) = tokio::io::split(client);
+            let result = exchange(&mut writer, &mut BufReader::new(reader), 1, "test", Value::Null, RPC_TIMEOUT).await;
+            assert!(matches!(result, Err(CodexClientError::Timeout)));
+        }
+    }
+
+    #[tokio::test]
+    async fn oversized_response_without_newline_is_rejected() {
+        let bytes = vec![b'x'; MAX_RESPONSE_LINE_BYTES as usize + 1];
+        let result = exchange(&mut tokio::io::sink(), &mut &bytes[..], 1, "test", Value::Null, RPC_TIMEOUT).await;
+        assert!(matches!(result, Err(CodexClientError::Protocol(message)) if message.contains("safe limit")));
+    }
+
+    #[tokio::test]
+    async fn notification_filtering_still_returns_the_matching_response() {
+        let bytes = b"invalid json\n{\"method\":\"notice\"}\n{\"id\":2,\"result\":false}\n{\"id\":1,\"result\":true}\n";
+        let result = exchange(&mut tokio::io::sink(), &mut &bytes[..], 1, "test", Value::Null, RPC_TIMEOUT).await.unwrap();
+        assert_eq!(result, json!(true));
+    }
+
     #[test]
     fn normalizes_known_and_future_windows() {
         let source = json!({ "rateLimits": {

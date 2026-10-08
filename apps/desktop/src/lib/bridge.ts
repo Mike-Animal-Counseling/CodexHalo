@@ -133,7 +133,9 @@ export const bridge = {
   },
   async commitCompactSurface(status: DashboardStatus, refreshing: boolean): Promise<SurfaceLayout | null> {
     if (!isTauri()) return { orbX: 0, orbY: 0, panelX: 0, panelY: 31, placement: "below", edge: null };
-    return invoke<SurfaceLayout>("commit_compact_surface", { status, refreshing });
+    return invoke<SurfaceLayout>("commit_compact_surface", {
+      status: { connection: status.connection, windows: status.windows, updatedAt: status.updatedAt ?? null }, refreshing,
+    });
   },
   async finishCompactHandoff(): Promise<void> {
     if (isTauri()) await invoke("finish_compact_handoff");

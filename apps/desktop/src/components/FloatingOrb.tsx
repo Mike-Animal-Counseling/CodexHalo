@@ -5,7 +5,7 @@ import { primaryQuotaWindow, quotaName, quotaTone, remaining } from "../lib/form
 import { dashboardViewState } from "../lib/viewState";
 
 export function FloatingOrb({ status, refreshing, reducedMotion, quotaWindowMinutes, dragging = false, dragEnabled = true, action = "expand", onExpand, onStartDrag }: {
-  status: DashboardStatus;
+  status: Pick<DashboardStatus, "connection" | "windows" | "updatedAt">;
   refreshing: boolean;
   reducedMotion: boolean;
   quotaWindowMinutes?: number | null;

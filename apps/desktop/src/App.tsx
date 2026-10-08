@@ -40,6 +40,7 @@ function MainApp() {
   const [dockedEdge, setDockedEdge] = useState<DockEdge>();
   const [systemReducedMotion, setSystemReducedMotion] = useState(false);
   const [, setClockTick] = useState(0);
+  const consentEpoch = useRef(0);
   const revealBusy = useRef(false);
   const hideTimer = useRef<number | undefined>(undefined);
   const closeTimer = useRef<number | undefined>(undefined);
@@ -119,13 +120,19 @@ function MainApp() {
   }, [cancelHide]);
 
   const refresh = useCallback(async () => {
-    if (!settings.codexEnabled) return;
+    const epoch = consentEpoch.current;
+    if (!settingsRef.current.codexEnabled) return;
     if (settings.startupBehavior === "showWhenCodexStarts" && !await bridge.isWindowVisible()) return;
+    if (epoch !== consentEpoch.current || !settingsRef.current.codexEnabled) return;
     setRefreshing(true);
-    try { setStatus(await bridge.refresh()); }
+    try {
+      const next = await bridge.refresh();
+      if (epoch === consentEpoch.current && settingsRef.current.codexEnabled) setStatus(next);
+    }
     catch (error) {
+      if (epoch !== consentEpoch.current || !settingsRef.current.codexEnabled) return;
       setStatus((current) => ({ ...current, connection: current.updatedAt ? "offline" : "error", message: error instanceof Error ? error.message : String(error) }));
-    } finally { setRefreshing(false); }
+    } finally { if (epoch === consentEpoch.current) setRefreshing(false); }
   }, [settings.codexEnabled, settings.startupBehavior]);
 
   useEffect(() => {
@@ -295,7 +302,12 @@ function MainApp() {
 
   const enable = async () => { setStatus((current) => ({ ...current, connection: "connecting" })); setSettings(await bridge.setCodexEnabled(true)); };
   const disable = async () => {
-    setSettings(await bridge.setCodexEnabled(false)); setStatus(disabledStatus); setSettingsOpen(false); setPhase("closed");
+    const next = await bridge.setCodexEnabled(false);
+    consentEpoch.current += 1;
+    settingsRef.current = next;
+    if (closeTimer.current) window.clearTimeout(closeTimer.current);
+    cancelHide();
+    setSettings(next); setStatus(disabledStatus); setRefreshing(false); setSettingsOpen(false); setPhase("closed");
   };
   const settingsSaveQueue = useRef(Promise.resolve());
   const updateSettings = (next: Settings) => {

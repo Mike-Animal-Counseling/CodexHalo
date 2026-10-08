@@ -7,7 +7,7 @@ mod windows_startup;
 
 use std::sync::{
     atomic::{AtomicU64, Ordering},
-    Mutex,
+    Arc, Mutex,
 };
 use serde::{Deserialize, Serialize};
 use settings::{Settings, SettingsStore, StartupBehavior, VisibilityMode, WindowPosition};
@@ -37,7 +37,8 @@ fn primary_pointer_is_down() -> bool {
 
 struct AppState {
     settings: Mutex<Settings>,
-    consent_generation: AtomicU64,
+    consent_generation: Arc<AtomicU64>,
+    handoff_sequence: AtomicU64,
     store: SettingsStore,
     cache: Mutex<Option<DashboardStatus>>,
     geometry: tokio::sync::Mutex<()>,
@@ -68,9 +69,31 @@ enum WindowSurface { Onboarding, Compact, Expanded }
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct CompactHandoffPayload {
-    status: DashboardStatus,
+    sequence: u64,
+    status: Option<CompactStatus>,
     settings: Settings,
     refreshing: bool,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CompactStatus {
+    connection: ConnectionState,
+    windows: Vec<codexhalo_shared::RateLimitWindow>,
+    updated_at: Option<i64>,
+}
+
+fn clear_compact_handoff(app: &AppHandle, state: &AppState, settings: &Settings) -> Result<(), String> {
+    if let Some(handoff) = app.get_webview_window("compact-handoff") {
+        let hidden = handoff.hide().map_err(|error| error.to_string());
+        let cleared = app.emit_to("compact-handoff", "halo://compact-handoff", CompactHandoffPayload {
+            sequence: state.handoff_sequence.fetch_add(1, Ordering::AcqRel) + 1,
+            status: None, settings: settings.clone(), refreshing: false,
+        }).map_err(|error| error.to_string());
+        hidden?;
+        cleared?;
+    }
+    Ok(())
 }
 
 const COMPACT_WIDTH: f64 = 148.0;
@@ -366,7 +389,7 @@ fn set_settings(window: WebviewWindow, state: State<'_, AppState>, mut settings:
 }
 
 #[tauri::command]
-fn set_codex_enabled(state: State<'_, AppState>, enabled: bool) -> Result<Settings, String> {
+fn set_codex_enabled(app: AppHandle, state: State<'_, AppState>, enabled: bool) -> Result<Settings, String> {
     let mut settings_guard = state.settings.lock().map_err(|error| error.to_string())?;
     let mut settings = settings_guard.clone();
     let changed = settings.codex_enabled != enabled;
@@ -380,6 +403,7 @@ fn set_codex_enabled(state: State<'_, AppState>, enabled: bool) -> Result<Settin
         *state.cache.lock().map_err(|error| error.to_string())? = None;
         status::clear_history_cache();
         if let Ok(mut tracker) = state.reminders.lock() { tracker.clear_observed(); }
+        clear_compact_handoff(&app, state.inner(), &settings)?;
     }
     Ok(settings)
 }
@@ -545,13 +569,18 @@ async fn apply_expanded_layout(
 async fn commit_compact_surface(
     window: WebviewWindow,
     state: State<'_, AppState>,
-    status: DashboardStatus,
+    status: CompactStatus,
     refreshing: bool,
 ) -> Result<SurfaceLayout, String> {
     let _geometry = state.geometry.lock().await;
     if *state.surface.lock().map_err(|error| error.to_string())? != WindowSurface::Expanded {
         return Ok(*state.surface_layout.lock().map_err(|error| error.to_string())?);
     }
+    let captured_generation = {
+        let settings = state.settings.lock().map_err(|error| error.to_string())?;
+        require_codex_consent(settings.codex_enabled)?;
+        state.consent_generation.load(Ordering::Acquire)
+    };
     let scale = window.scale_factor().map_err(|error| error.to_string())?;
     let current = window.outer_position().map_err(|error| error.to_string())?;
     let current = WindowPosition { x: current.x, y: current.y };
@@ -575,15 +604,26 @@ async fn commit_compact_surface(
     let handoff = window.app_handle().get_webview_window("compact-handoff");
     if let Some(handoff) = handoff.as_ref() {
         set_native_window_rect(handoff, target, width, height)?;
-        let payload = CompactHandoffPayload {
-            status,
-            settings: state.settings.lock().map_err(|error| error.to_string())?.clone(),
-            refreshing,
-        };
-        window.app_handle().emit_to("compact-handoff", "halo://compact-handoff", payload)
-            .map_err(|error| error.to_string())?;
+        {
+            let settings = state.settings.lock().map_err(|error| error.to_string())?;
+            if !consent_is_current(settings.codex_enabled, state.consent_generation.load(Ordering::Acquire), captured_generation) {
+                return Err("Codex access was revoked".into());
+            }
+            let payload = CompactHandoffPayload {
+                sequence: state.handoff_sequence.fetch_add(1, Ordering::AcqRel) + 1,
+                status: Some(status), settings: settings.clone(), refreshing,
+            };
+            window.app_handle().emit_to("compact-handoff", "halo://compact-handoff", payload)
+                .map_err(|error| error.to_string())?;
+        }
         sleep(Duration::from_millis(40)).await;
-        handoff.show().map_err(|error| error.to_string())?;
+        {
+            let settings = state.settings.lock().map_err(|error| error.to_string())?;
+            if !consent_is_current(settings.codex_enabled, state.consent_generation.load(Ordering::Acquire), captured_generation) {
+                return Err("Codex access was revoked".into());
+            }
+            handoff.show().map_err(|error| error.to_string())?;
+        }
         sleep(Duration::from_millis(18)).await;
     }
 
@@ -595,11 +635,9 @@ async fn commit_compact_surface(
 }
 
 #[tauri::command]
-fn finish_compact_handoff(window: WebviewWindow) -> Result<(), String> {
-    if let Some(handoff) = window.app_handle().get_webview_window("compact-handoff") {
-        handoff.hide().map_err(|error| error.to_string())?;
-    }
-    Ok(())
+fn finish_compact_handoff(window: WebviewWindow, state: State<'_, AppState>) -> Result<(), String> {
+    let settings = state.settings.lock().map_err(|error| error.to_string())?;
+    clear_compact_handoff(window.app_handle(), state.inner(), &settings)
 }
 
 #[tauri::command]
@@ -687,7 +725,7 @@ async fn refresh_status(state: State<'_, AppState>) -> Result<DashboardStatus, S
         }
         state.consent_generation.load(Ordering::Acquire)
     };
-    let refreshed = status::refresh(true).await;
+    let refreshed = status::refresh(true, status::ReadPermit::new(state.consent_generation.clone(), captured_generation)).await;
     // Hold the settings lock through the cache decision. Disable uses the same lock,
     // increments the generation, and clears the cache, so stale work cannot win.
     let settings = state.settings.lock().map_err(|error| error.to_string())?;
@@ -950,7 +988,8 @@ pub fn run() {
             app.manage(AppState {
                 orb_position: Mutex::new(settings.window_position),
                 settings: Mutex::new(settings),
-                consent_generation: AtomicU64::new(0),
+                consent_generation: Arc::new(AtomicU64::new(0)),
+                handoff_sequence: AtomicU64::new(0),
                 store,
                 cache: Mutex::new(None),
                 geometry: tokio::sync::Mutex::new(()),
@@ -1022,6 +1061,17 @@ mod geometry_tests {
         generation.fetch_add(1, Ordering::AcqRel);
         assert!(!consent_is_current(true, generation.load(Ordering::Acquire), captured));
         assert!(!consent_is_current(false, captured, captured));
+    }
+
+    #[test]
+    fn handoff_schema_rejects_history_and_token_payloads() {
+        let minimal = serde_json::json!({ "connection": "ready", "windows": [], "updatedAt": null });
+        assert!(serde_json::from_value::<CompactStatus>(minimal.clone()).is_ok());
+        for field in ["history", "tokens", "pricing", "message"] {
+            let mut unexpected = minimal.clone();
+            unexpected[field] = serde_json::json!([]);
+            assert!(serde_json::from_value::<CompactStatus>(unexpected).is_err());
+        }
     }
 
     #[test]

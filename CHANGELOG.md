@@ -8,6 +8,14 @@ Release dates use America/Los_Angeles.
 
 No unreleased changes yet.
 
+## [1.1.3](https://github.com/Mike-Animal-Counseling/CodexHalo/releases/tag/v1.1.3) - 2026-10-08
+
+- Prevent truncated or corrupt compressed history files from stalling usage refresh.
+- Bound each Codex request with a single deadline and reject oversized response lines.
+- Stop revoked session scans between reads; discard stale frontend responses after access changes.
+- Send only quota fields to the transition window and clear its state after transitions or disabling access.
+- Upgrade development dependencies to patched versions and add weekly/lockfile-change security audits.
+
 ## [1.1.2](https://github.com/Mike-Animal-Counseling/CodexHalo/releases/tag/v1.1.2) - 2026-10-07
 
 - Match the retracted screen-edge handle to the selected quota progress palette, including its grip, border, hover glow, and focus outline.

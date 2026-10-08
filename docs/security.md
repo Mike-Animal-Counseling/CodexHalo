@@ -5,7 +5,10 @@ Codex path discovery, process launch, app-server access, or session reads.
 
 - Codex access is disabled by default.
 - Disabling increments a consent generation, clears the process-local status
-  cache, and prevents an older in-flight refresh from committing data.
+  cache, and prevents an older in-flight refresh from committing data. Session
+  scans check that generation between file/record reads and before starting
+  each new stage. A read already in progress may finish before cancellation
+  is observed; a pending quota request has a bounded per-request deadline.
 - The backend login command independently requires consent.
 - The frontend has no filesystem or shell command and only the Tauri event and
   window-visibility permissions it uses.
@@ -38,7 +41,9 @@ executable-path check; it does not inspect process command lines, content, or
 memory.
 
 Historical usage stays in memory and is derived from the same local session
-files. Cached history is cleared on disable; an in-flight result is discarded
+files. The transition WebView receives only connection/quota fields, never
+usage history or pricing details; its state is cleared after each transition
+and on disable, with sequence numbers rejecting delayed events. Cached history is cleared on disable; an in-flight result is discarded
 when its consent generation changes. Reset reminder settings default to off;
 reminders run in Rust while the HUD is hidden and require the app to stay open.
 Only reset-cycle identifiers and timestamps are saved for reminder deduplication.

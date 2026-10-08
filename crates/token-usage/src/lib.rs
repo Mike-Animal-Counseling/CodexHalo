@@ -99,13 +99,12 @@ pub fn aggregate_day(root: &Path, day: NaiveDate) -> Result<TokenUsage, String> 
 }
 
 pub fn aggregate_codex_home_day(codex_home: &Path, day: NaiveDate) -> Result<TokenUsage, String> {
-    aggregate_roots_day(
-        &[
-            codex_home.join("sessions"),
-            codex_home.join("archived_sessions"),
-        ],
-        day,
-    )
+    aggregate_codex_home_day_checked(codex_home, day, &|| Ok(()))
+}
+
+pub fn aggregate_codex_home_day_checked(codex_home: &Path, day: NaiveDate, check: &dyn Fn() -> Result<(), String>) -> Result<TokenUsage, String> {
+    let roots = [codex_home.join("sessions"), codex_home.join("archived_sessions")];
+    Ok(finalize_intervals(collect_intervals_checked(&roots, check)?, day))
 }
 
 fn aggregate_roots_day(roots: &[PathBuf], day: NaiveDate) -> Result<TokenUsage, String> {
@@ -131,12 +130,20 @@ fn aggregate_roots_history(
     roots: &[PathBuf],
     through: NaiveDate,
 ) -> Result<Vec<DailyTokenUsage>, String> {
+    aggregate_roots_history_checked(roots, through, &|| Ok(()))
+}
+
+pub fn aggregate_codex_home_history_checked(codex_home: &Path, through: NaiveDate, check: &dyn Fn() -> Result<(), String>) -> Result<Vec<DailyTokenUsage>, String> {
+    aggregate_roots_history_checked(&[codex_home.join("sessions"), codex_home.join("archived_sessions")], through, check)
+}
+
+fn aggregate_roots_history_checked(roots: &[PathBuf], through: NaiveDate, check: &dyn Fn() -> Result<(), String>) -> Result<Vec<DailyTokenUsage>, String> {
     let start = through
         .checked_sub_months(Months::new(12))
         .and_then(|day| day.succ_opt())
         .ok_or_else(|| "The history date is outside the supported calendar range".to_owned())?;
     let mut by_day = BTreeMap::<NaiveDate, TokenUsage>::new();
-    for buckets in collect_intervals(roots)?.into_values() {
+    for buckets in collect_intervals_checked(roots, check)?.into_values() {
         for interval in buckets {
             let Some(day) = interval.first_day else { continue };
             if day < start || day > through || usage_is_zero(&interval.usage) {
@@ -163,12 +170,18 @@ fn aggregate_roots_history(
 }
 
 fn collect_intervals(roots: &[PathBuf]) -> Result<HashMap<String, Vec<MergedInterval>>, String> {
+    collect_intervals_checked(roots, &|| Ok(()))
+}
+
+fn collect_intervals_checked(roots: &[PathBuf], check: &dyn Fn() -> Result<(), String>) -> Result<HashMap<String, Vec<MergedInterval>>, String> {
+    check()?;
     let mut paths = Vec::new();
     for root in roots {
         if !root.exists() {
             continue;
         }
         for entry in WalkDir::new(root).follow_links(false).into_iter().filter_map(Result::ok) {
+            check()?;
             if entry.file_type().is_file() && is_rollout_path(entry.path()) {
                 paths.push(entry.into_path());
             }
@@ -180,10 +193,12 @@ fn collect_intervals(roots: &[PathBuf]) -> Result<HashMap<String, Vec<MergedInte
     let mut streams = BTreeMap::<StreamKey, Vec<SequencedEvent>>::new();
     let mut first_error = None;
     for path in paths {
-        if let Err(error) = collect_file(&path, &mut streams) {
+        check()?;
+        if let Err(error) = collect_file(&path, &mut streams, check) {
             first_error.get_or_insert(error);
         }
     }
+    check()?;
     if streams.is_empty() {
         if let Some(error) = first_error {
             return Err(error);
@@ -192,6 +207,7 @@ fn collect_intervals(roots: &[PathBuf]) -> Result<HashMap<String, Vec<MergedInte
 
     let mut intervals = HashMap::<String, Vec<MergedInterval>>::new();
     for events in streams.values_mut() {
+        check()?;
         events.sort_by(compare_events);
         process_stream(events, &mut intervals);
     }
@@ -246,14 +262,20 @@ fn rollout_reader(path: &Path) -> Result<Box<dyn BufRead>, String> {
 fn collect_file(
     path: &Path,
     streams: &mut BTreeMap<StreamKey, Vec<SequencedEvent>>,
+    check: &dyn Fn() -> Result<(), String>,
 ) -> Result<(), String> {
+    check()?;
     let mut owner = TokenRecordOwner {
         path: path.to_path_buf(),
         ..Default::default()
     };
     let mut subagent_history_start_ordinal = None;
-    for (line_number, line) in rollout_reader(path)?.lines().enumerate() {
-        let Ok(line) = line else { continue };
+    let mut lines = rollout_reader(path)?.lines().enumerate();
+    loop {
+        check()?;
+        let Some((line_number, line)) = lines.next() else { break };
+        // Decoder errors can be permanent; retrying would spin without advancing.
+        let line = line.map_err(|error| format!("Could not read a Codex rollout: {error}"))?;
         let Ok(record) = serde_json::from_str::<Value>(&line) else { continue };
         let payload = record.get("payload").unwrap_or(&record);
 
@@ -983,6 +1005,48 @@ mod tests {
         let usage = aggregate_codex_home_day(home.path(), day()).unwrap();
         assert_eq!(usage.total, 50);
         assert_eq!(usage.by_model["gpt-5.6-sol"].total, 50);
+    }
+
+    #[test]
+    fn revoked_read_stops_inside_a_rollout_instead_of_returning_partial_data() {
+        use std::cell::Cell;
+        let temp = fixture(&[r#"{"type":"turn_context","payload":{"model":"synthetic"}}"#; 100]);
+        let reads = Cell::new(0);
+        let check = || {
+            reads.set(reads.get() + 1);
+            if reads.get() >= 10 { Err("revoked".to_owned()) } else { Ok(()) }
+        };
+        let result = collect_intervals_checked(&[temp.path().to_path_buf()], &check);
+        assert!(matches!(result, Err(error) if error == "revoked"));
+        assert!(reads.get() < 20);
+    }
+
+    #[test]
+    fn truncated_and_corrupt_zstd_finish_without_hiding_valid_files() {
+        use std::{sync::mpsc, time::Duration};
+        // Bound the regression test itself: a broken reader must fail, not hang CI.
+        let (send, receive) = mpsc::channel();
+        std::thread::spawn(move || {
+            let temp = fixture(&[]);
+            let compressed = zstd::stream::encode_all(&b"synthetic record\n"[..], 3).unwrap();
+            let truncated = compressed[..compressed.len() - 3].to_vec();
+            let mut corrupt = compressed;
+            // Reserved block type, after this small frame's six-byte header.
+            corrupt[6] = (corrupt[6] & !6) | 6;
+            for bytes in [truncated, corrupt] {
+                fs::write(temp.path().join("broken.jsonl.zst"), bytes).unwrap();
+                let result = aggregate_day(temp.path(), day());
+                assert!(result.is_err(), "a damaged-only archive must report failure");
+                fs::write(temp.path().join("valid.jsonl"), concat!(
+                    r#"{"timestamp":"2026-08-23T12:00:00Z","type":"turn_context","payload":{"model":"synthetic-model"}}"#, "\n",
+                    r#"{"timestamp":"2026-08-23T12:00:01Z","type":"token_count","payload":{"info":{"total_token_usage":{"input_tokens":40,"output_tokens":10,"total_tokens":50}}}}"#, "\n",
+                )).unwrap();
+                assert_eq!(aggregate_day(temp.path(), day()).unwrap().total, 50);
+                fs::remove_file(temp.path().join("valid.jsonl")).unwrap();
+            }
+            send.send(()).unwrap();
+        });
+        receive.recv_timeout(Duration::from_secs(3)).expect("damaged archive reader stalled");
     }
 
     #[test]

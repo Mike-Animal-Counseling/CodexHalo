@@ -1,4 +1,4 @@
-use std::{env, path::PathBuf, sync::Mutex, time::{Instant, Duration}};
+use std::{env, path::PathBuf, sync::{Arc, Mutex, atomic::{AtomicU64, Ordering}}, time::{Instant, Duration}};
 use chrono::{Local, NaiveDate, Utc};
 use codexhalo_codex_client::{read_quota, CodexClientError, QuotaRead};
 use codexhalo_pricing::{estimate, estimate_with_snapshot, catalog_snapshot, CatalogSnapshot, PricingEstimate};
@@ -13,6 +13,20 @@ pub struct UsageHistoryDay {
     pub pricing: PricingEstimate,
 }
 
+#[derive(Clone)]
+pub struct ReadPermit {
+    generation: Arc<AtomicU64>,
+    captured: u64,
+}
+
+impl ReadPermit {
+    pub fn new(generation: Arc<AtomicU64>, captured: u64) -> Self { Self { generation, captured } }
+    pub fn check(&self) -> Result<(), String> {
+        (self.generation.load(Ordering::Acquire) == self.captured)
+            .then_some(()).ok_or_else(|| "Codex access was revoked".to_owned())
+    }
+}
+
 struct HistoryCache {
     date: NaiveDate,
     loaded: Instant,
@@ -24,10 +38,12 @@ pub fn clear_history_cache() {
     if let Ok(mut cache) = HISTORY.try_lock() { *cache = None; }
 }
 
-fn history(home: &std::path::Path, today: NaiveDate, tokens: &TokenUsage, snapshot: &CatalogSnapshot) -> Result<Vec<UsageHistoryDay>, String> {
+fn history(home: &std::path::Path, today: NaiveDate, tokens: &TokenUsage, snapshot: &CatalogSnapshot, permit: &ReadPermit) -> Result<Vec<UsageHistoryDay>, String> {
+    permit.check()?;
     let mut cache = HISTORY.lock().map_err(|error| error.to_string())?;
     if cache.as_ref().is_none_or(|cached| cached.date != today || cached.loaded.elapsed() > Duration::from_secs(300)) {
-        let days = codexhalo_token_usage::aggregate_codex_home_history(home, today)?;
+        let days = codexhalo_token_usage::aggregate_codex_home_history_checked(home, today, &|| permit.check())?;
+        permit.check()?;
         *cache = Some(HistoryCache { date: today, loaded: Instant::now(), days });
     }
     Ok(cache.as_ref().unwrap().days.iter().map(|day| {
@@ -98,9 +114,10 @@ fn quota_error_status(error: CodexClientError) -> Result<DashboardStatus, String
     }
 }
 
-pub async fn refresh(enabled: bool) -> Result<DashboardStatus, String> {
+pub async fn refresh(enabled: bool, permit: ReadPermit) -> Result<DashboardStatus, String> {
     // This gate intentionally precedes path discovery, process launch, and every Codex read.
     require_enabled(enabled)?;
+    permit.check()?;
     let quota = match read_quota().await {
         Ok(quota) => quota,
         Err(error) => return quota_error_status(error),
@@ -119,13 +136,15 @@ pub async fn refresh(enabled: bool) -> Result<DashboardStatus, String> {
         }
         QuotaRead::Authenticated(windows) => windows,
     };
+    permit.check()?;
     let home = codex_home()?;
     let snapshot = catalog_snapshot();
     let worker_snapshot = snapshot.clone();
     let (tokens, history) = tauri::async_runtime::spawn_blocking(move || {
+        permit.check()?;
         let today = Local::now().date_naive();
-        let tokens = codexhalo_token_usage::aggregate_codex_home_day(&home, today)?;
-        let history = history(&home, today, &tokens, &worker_snapshot)?;
+        let tokens = codexhalo_token_usage::aggregate_codex_home_day_checked(&home, today, &|| permit.check())?;
+        let history = history(&home, today, &tokens, &worker_snapshot, &permit)?;
         Ok::<_, String>((tokens, history))
     }).await.map_err(|error| error.to_string())??;
     let pricing = estimate_with_snapshot(&tokens, &snapshot);
@@ -154,6 +173,18 @@ mod tests {
         });
         assert!(result.is_err());
         assert_eq!(ACCESSES.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn revoked_permit_stops_later_read_stages_even_after_reenable() {
+        let generation = Arc::new(AtomicU64::new(0));
+        let permit = ReadPermit::new(generation.clone(), 0);
+        assert!(permit.check().is_ok());
+        generation.fetch_add(1, Ordering::AcqRel);
+        assert!(permit.check().is_err());
+        generation.fetch_add(1, Ordering::AcqRel);
+        assert!(permit.check().is_err());
+        assert!(ReadPermit::new(generation, 2).check().is_ok());
     }
 
     #[test]
