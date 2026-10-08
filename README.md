@@ -20,6 +20,7 @@ explore past activity. Built with Tauri 2, React, TypeScript, and Rust.
 
 ## News
 
+- **2026-10-07 &middot; [v1.1.2](https://github.com/Mike-Animal-Counseling/CodexHalo/releases/tag/v1.1.2)** Hidden screen-edge handles now match the selected quota progress color, including hover, focus, and unavailable-data states.
 - **2026-10-07 &middot; [v1.1.1](https://github.com/Mike-Animal-Counseling/CodexHalo/releases/tag/v1.1.1)** Separate History and token-price pages; compact settings tabs and model pagination replace long scrolling panels. Add a new demo, bilingual documentation, contribution guides, issue forms, and CI.
 - **2026-10-06 &middot; [v1.1.0](https://github.com/Mike-Animal-Counseling/CodexHalo/releases/tag/v1.1.0)** Smooth screen-edge handles; 7-day, 30-day, and yearly usage trends; customizable quota-reset reminders; independently updated model prices and per-model estimates.
 - **2026-08-29 &middot; [v1.0.0](https://github.com/Mike-Animal-Counseling/CodexHalo/releases/tag/v1.0.0)** First Windows release with a floating quota monitor, local daily token usage, and API-equivalent estimates.
@@ -53,10 +54,10 @@ Each release provides its installer SHA-256 and a checksum file. Verify a
 local download with PowerShell:
 
 ```powershell
-Get-FileHash .\CodexHalo_1.1.1_x64-setup.exe -Algorithm SHA256
+Get-FileHash .\CodexHalo_1.1.2_x64-setup.exe -Algorithm SHA256
 ```
 
-Compare the result with [v1.1.1 SHA256SUMS.txt](https://github.com/Mike-Animal-Counseling/CodexHalo/releases/download/v1.1.1/SHA256SUMS.txt).
+Compare the result with [v1.1.2 SHA256SUMS.txt](https://github.com/Mike-Animal-Counseling/CodexHalo/releases/download/v1.1.2/SHA256SUMS.txt).
 Application upgrades are installed from GitHub Releases; there is no executable auto-updater.
 
 ## Try it

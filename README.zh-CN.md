@@ -18,6 +18,7 @@ CodexHalo 是轻量的 Windows Codex 用量工具。圆形浮窗显示剩余额�
 
 ## News
 
+- **2026-10-07 · [v1.1.2](https://github.com/Mike-Animal-Counseling/CodexHalo/releases/tag/v1.1.2)** 隐藏后的边缘把手跟随当前主额度的进度颜色，包括悬停、键盘焦点和无数据状态。
 - **2026-10-07 · [v1.1.1](https://github.com/Mike-Animal-Counseling/CodexHalo/releases/tag/v1.1.1)** History 与价格明细独立成页；设置按组切换，较长列表改为翻页，避免长滚动面板。新增演示、双语文档、贡献指南、问题模板与 CI。
 - **2026-10-06 · [v1.1.0](https://github.com/Mike-Animal-Counseling/CodexHalo/releases/tag/v1.1.0)** 改善屏幕边缘隐藏与展开；新增 7 天、30 天和年度趋势、自定义额度重置提醒、可独立更新的模型价格表与分模型估算。
 - **2026-08-29 · [v1.0.0](https://github.com/Mike-Animal-Counseling/CodexHalo/releases/tag/v1.0.0)** 首个 Windows 版本：悬浮额度监控、本地今日 Token 用量与 API 等价估算。
@@ -45,10 +46,10 @@ CodexHalo 是轻量的 Windows Codex 用量工具。圆形浮窗显示剩余额�
 安装包目前未签名，Windows 可能显示 SmartScreen 提示。每次发布提供安装包的 SHA-256 和校验文件。用 PowerShell 检查下载文件：
 
 ```powershell
-Get-FileHash .\CodexHalo_1.1.1_x64-setup.exe -Algorithm SHA256
+Get-FileHash .\CodexHalo_1.1.2_x64-setup.exe -Algorithm SHA256
 ```
 
-与 [v1.1.1 的 SHA256SUMS.txt](https://github.com/Mike-Animal-Counseling/CodexHalo/releases/download/v1.1.1/SHA256SUMS.txt) 比较。应用升级通过 GitHub Releases 下载并安装，目前没有自动更新程序本体的功能。
+与 [v1.1.2 的 SHA256SUMS.txt](https://github.com/Mike-Animal-Counseling/CodexHalo/releases/download/v1.1.2/SHA256SUMS.txt) 比较。应用升级通过 GitHub Releases 下载并安装，目前没有自动更新程序本体的功能。
 
 ## 快速体验
 

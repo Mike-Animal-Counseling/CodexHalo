@@ -8,6 +8,11 @@ Release dates use America/Los_Angeles.
 
 No unreleased changes yet.
 
+## [1.1.2](https://github.com/Mike-Animal-Counseling/CodexHalo/releases/tag/v1.1.2) - 2026-10-07
+
+- Match the retracted screen-edge handle to the selected quota progress palette, including its grip, border, hover glow, and focus outline.
+- Keep colors synchronized when quota data or the preferred limit changes; preserve connection and unavailable-data colors.
+
 ## [1.1.1](https://github.com/Mike-Animal-Counseling/CodexHalo/releases/tag/v1.1.1) - 2026-10-07
 
 ### Changed
