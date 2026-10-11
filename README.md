@@ -130,3 +130,7 @@ Released under the [MIT License](LICENSE). Dependency notices are in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 CodexHalo is an independent community utility and is not an official OpenAI product.
+
+## Security and deployment
+
+Read the [security policy](SECURITY.md) and [production requirements](docs/PRODUCTION_SECURITY.md) before deployment.
