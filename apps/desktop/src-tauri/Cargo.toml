@@ -21,7 +21,7 @@ codexhalo-codex-client = { path = "../../../crates/codex-client" }
 codexhalo-pricing = { path = "../../../crates/pricing" }
 codexhalo-shared = { path = "../../../crates/shared" }
 codexhalo-token-usage = { path = "../../../crates/token-usage" }
-dirs = "6"
+dirs = "7"
 serde.workspace = true
 serde_json.workspace = true
 tauri = { version = "2", default-features = false, features = ["wry", "tray-icon"] }
