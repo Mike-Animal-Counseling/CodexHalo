@@ -1,22 +1,33 @@
 version: 2
 updates:
-  - package-ecosystem: "github-actions"
-    directory: "/"
+  - package-ecosystem: 'github-actions'
+    directory: '/'
     schedule:
-      interval: "weekly"
+      interval: 'weekly'
     open-pull-requests-limit: 5
-  - package-ecosystem: "npm"
-    directory: "/"
+  - package-ecosystem: 'npm'
+    directory: '/'
     schedule:
-      interval: "weekly"
+      interval: 'weekly'
     open-pull-requests-limit: 5
-  - package-ecosystem: "npm"
-    directory: "/apps/desktop"
+    # Update the root lockfile once for the entire workspace.
+    groups:
+      react:
+        patterns:
+          - 'react'
+          - 'react-dom'
+          - '@types/react'
+          - '@types/react-dom'
+      vite:
+        patterns:
+          - 'vite'
+          - '@vitejs/*'
+      vitest:
+        patterns:
+          - 'vitest'
+          - '@vitest/*'
+  - package-ecosystem: 'cargo'
+    directory: '/'
     schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
-  - package-ecosystem: "cargo"
-    directory: "/"
-    schedule:
-      interval: "weekly"
+      interval: 'weekly'
     open-pull-requests-limit: 5
