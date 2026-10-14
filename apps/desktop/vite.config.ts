@@ -8,7 +8,7 @@ export default defineConfig({
   envPrefix: ["VITE_", "TAURI_ENV_*"],
   build: {
     target: "es2021",
-    minify: "esbuild",
+    minify: true,
     sourcemap: false,
   },
   test: { environment: "jsdom", setupFiles: "./src/test/setup.ts" },
