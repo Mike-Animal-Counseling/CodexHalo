@@ -3,7 +3,7 @@ use chrono::NaiveDate;
 use codexhalo_shared::{ModelUsage, TokenUsage};
 use serde::{Deserialize, Serialize};
 
-pub const PRICING_VERSION: &str = "2026-10-05";
+pub const PRICING_VERSION: &str = "2026-10-28";
 pub const OFFICIAL_PRICING_URL: &str = "https://developers.openai.com/api/docs/pricing";
 pub const MAX_CATALOG_BYTES: usize = 256 * 1024;
 const MAX_RATE: f64 = 100_000.0;

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "version": "2026-10-05",
-  "publishedAt": "2026-10-05",
+  "version": "2026-10-28",
+  "publishedAt": "2026-10-28",
   "currency": "USD",
   "pricingMode": "standard",
   "sourceUrl": "https://developers.openai.com/api/docs/pricing",
@@ -433,6 +433,24 @@
           "cachedInputPerMillion": 0.2,
           "cacheWritePerMillion": 5,
           "outputPerMillion": 15
+        }
+      }
+    },
+    {
+      "id": "gpt-6.1-terra",
+      "rates": {
+        "inputPerMillion": 1,
+        "cachedInputPerMillion": 0.05,
+        "cacheWritePerMillion": 1.25,
+        "outputPerMillion": 5
+      },
+      "longContext": {
+        "inputThreshold": 272000,
+        "rates": {
+          "inputPerMillion": 2,
+          "cachedInputPerMillion": 0.1,
+          "cacheWritePerMillion": 2.5,
+          "outputPerMillion": 7.5
         }
       }
     },
