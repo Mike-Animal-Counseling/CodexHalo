@@ -50,7 +50,7 @@ Codex 访问默认关闭，开启后才会在本机解析会话文件。CodexHal
 
 ## 从源码构建
 
-Windows，Node.js **22.12+**、稳定版 Rust、Microsoft C++ Build Tools 和 WebView2。
+Windows，Node.js **20.19+ 或 22.12+**、稳定版 Rust、Microsoft C++ Build Tools 和 WebView2。
 完整环境说明见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ```powershell

@@ -52,7 +52,7 @@ download only a public JSON catalog. See [security and privacy](docs/security.md
 
 ## Build from source
 
-Windows with Node.js **22.12+**, stable Rust, Microsoft C++ Build Tools, and WebView2.
+Windows with Node.js **20.19+ or 22.12+**, stable Rust, Microsoft C++ Build Tools, and WebView2.
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full setup.
 
 ```powershell
