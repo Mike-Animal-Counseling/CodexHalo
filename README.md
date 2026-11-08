@@ -3,7 +3,7 @@
   <h1>CodexHalo</h1>
   <p>Your Codex limits, quietly in sight.</p>
   <p>
-    <a href="https://github.com/Mike-Animal-Counseling/CodexHalo/releases/latest"><strong>Download for Windows</strong></a>
+    <a href="https://github.com/Mike-Animal-Counseling/codex-halo/releases/latest"><strong>Download for Windows</strong></a>
     &nbsp;&middot;&nbsp; <a href="#news">News</a>
     &nbsp;&middot;&nbsp; <a href="CONTRIBUTING.md">Contribute</a>
     &nbsp;&middot;&nbsp; <a href="README.zh-CN.md">&#31616;&#20307;&#20013;&#25991;</a>
@@ -11,7 +11,7 @@
   <img src="docs/assets/codexhalo-preview.svg" width="900" alt="High-resolution CodexHalo walkthrough: quota, history trends, reset reminders, token pricing, price updates, and edge hide/reveal using synthetic data">
 </div>
 
-[![CI](https://github.com/Mike-Animal-Counseling/CodexHalo/actions/workflows/ci.yml/badge.svg)](https://github.com/Mike-Animal-Counseling/CodexHalo/actions/workflows/ci.yml)
+[![CI](https://github.com/Mike-Animal-Counseling/codex-halo/actions/workflows/ci.yml/badge.svg)](https://github.com/Mike-Animal-Counseling/codex-halo/actions/workflows/ci.yml)
 
 CodexHalo is a lightweight Windows companion for Codex. A small floating halo
 shows your remaining quota; click it for today's usage, or open History to
@@ -19,13 +19,13 @@ explore past activity. Built with Tauri 2, React, TypeScript, and Rust.
 
 ## News
 
-- **2026-10-08 &middot; [v1.1.3](https://github.com/Mike-Animal-Counseling/CodexHalo/releases/tag/v1.1.3)** Fix stalled refreshes from damaged history files, bound Codex requests, clear data after disabling access, and upgrade security dependencies with scheduled audits.
-- **2026-10-07 &middot; [v1.1.2](https://github.com/Mike-Animal-Counseling/CodexHalo/releases/tag/v1.1.2)** Hidden screen-edge handles now match the selected quota progress color, including hover, focus, and unavailable-data states.
-- **2026-10-07 &middot; [v1.1.1](https://github.com/Mike-Animal-Counseling/CodexHalo/releases/tag/v1.1.1)** Separate History and token-price pages; compact settings tabs and model pagination replace long scrolling panels. Add a new demo, bilingual documentation, contribution guides, issue forms, and CI.
-- **2026-10-06 &middot; [v1.1.0](https://github.com/Mike-Animal-Counseling/CodexHalo/releases/tag/v1.1.0)** Smooth screen-edge handles; 7-day, 30-day, and yearly usage trends; customizable quota-reset reminders; independently updated model prices and per-model estimates.
-- **2026-08-29 &middot; [v1.0.0](https://github.com/Mike-Animal-Counseling/CodexHalo/releases/tag/v1.0.0)** First Windows release with a floating quota monitor, local daily token usage, and API-equivalent estimates.
+- **2026-10-08 &middot; [v1.1.3](https://github.com/Mike-Animal-Counseling/codex-halo/releases/tag/v1.1.3)** Fix stalled refreshes from damaged history files, bound Codex requests, clear data after disabling access, and upgrade security dependencies with scheduled audits.
+- **2026-10-07 &middot; [v1.1.2](https://github.com/Mike-Animal-Counseling/codex-halo/releases/tag/v1.1.2)** Hidden screen-edge handles now match the selected quota progress color, including hover, focus, and unavailable-data states.
+- **2026-10-07 &middot; [v1.1.1](https://github.com/Mike-Animal-Counseling/codex-halo/releases/tag/v1.1.1)** Separate History and token-price pages; compact settings tabs and model pagination replace long scrolling panels. Add a new demo, bilingual documentation, contribution guides, issue forms, and CI.
+- **2026-10-06 &middot; [v1.1.0](https://github.com/Mike-Animal-Counseling/codex-halo/releases/tag/v1.1.0)** Smooth screen-edge handles; 7-day, 30-day, and yearly usage trends; customizable quota-reset reminders; independently updated model prices and per-model estimates.
+- **2026-08-29 &middot; [v1.0.0](https://github.com/Mike-Animal-Counseling/codex-halo/releases/tag/v1.0.0)** First Windows release with a floating quota monitor, local daily token usage, and API-equivalent estimates.
 
-See the [full changelog](CHANGELOG.md) and [all releases](https://github.com/Mike-Animal-Counseling/CodexHalo/releases). To follow releases, use GitHub's **Watch > Custom > Releases**.
+See the [full changelog](CHANGELOG.md) and [all releases](https://github.com/Mike-Animal-Counseling/codex-halo/releases). To follow releases, use GitHub's **Watch > Custom > Releases**.
 
 [Overview screenshot](docs/assets/codexhalo-overview.png) &middot; [History screenshot](docs/assets/codexhalo-history.png)
 
@@ -44,7 +44,7 @@ does not install Codex for you. The shipped desktop app currently supports
 
 ## Install or upgrade
 
-1. Download the installer from the [latest release](https://github.com/Mike-Animal-Counseling/CodexHalo/releases/latest).
+1. Download the installer from the [latest release](https://github.com/Mike-Animal-Counseling/codex-halo/releases/latest).
 2. If CodexHalo is already running, quit it from the system tray.
 3. Run the installer and launch CodexHalo. Installing over the previous version preserves settings unless you explicitly choose to remove app data.
 4. Enable **Enable Codex** when ready. Open or sign in to your Codex installation if the app cannot connect.
@@ -57,7 +57,7 @@ local download with PowerShell:
 Get-FileHash .\CodexHalo_1.1.3_x64-setup.exe -Algorithm SHA256
 ```
 
-Compare the result with [v1.1.3 SHA256SUMS.txt](https://github.com/Mike-Animal-Counseling/CodexHalo/releases/download/v1.1.3/SHA256SUMS.txt).
+Compare the result with [v1.1.3 SHA256SUMS.txt](https://github.com/Mike-Animal-Counseling/codex-halo/releases/download/v1.1.3/SHA256SUMS.txt).
 Application upgrades are installed from GitHub Releases; there is no executable auto-updater.
 
 ## Try it
@@ -98,7 +98,7 @@ Use Windows with Node.js **22.12+** (22 LTS recommended), stable Rust, Microsoft
 C++ Build Tools, and WebView2. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup.
 
 ```powershell
-git clone https://github.com/Mike-Animal-Counseling/CodexHalo.git
+git clone https://github.com/Mike-Animal-Counseling/codex-halo.git
 cd CodexHalo
 npm ci
 npm run tauri -- dev
@@ -120,7 +120,7 @@ To build the Windows installer with privacy checks, run `npm run release:windows
 | [Security policy](SECURITY.md) | Supported release and private vulnerability reports |
 | [Security and privacy](docs/security.md) | Consent, local data, and network behavior |
 
-For bugs or feature requests, use the [issue forms](https://github.com/Mike-Animal-Counseling/CodexHalo/issues/new/choose).
+For bugs or feature requests, use the [issue forms](https://github.com/Mike-Animal-Counseling/codex-halo/issues/new/choose).
 Sanitize screenshots and logs before sharing. Contributions follow the
 [project code of conduct](CODE_OF_CONDUCT.md).
 
