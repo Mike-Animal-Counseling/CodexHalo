@@ -25,7 +25,7 @@ Exact model identities and explicitly reviewed aliases determine rates. Future f
 
 With Codex access and automatic price sync enabled, the app checks a fixed public HTTPS URL at most once every 24 hours:
 
-    https://raw.githubusercontent.com/Mike-Animal-Counseling/CodexHalo/main/data/pricing.json
+    https://raw.githubusercontent.com/Mike-Animal-Counseling/codex-halo/main/data/pricing.json
 
 A manual refresh is also available. The request carries no usage counters, model names, Codex files, account credentials, or subscription information. The response is bounded to 256 KiB, has a 12-second timeout, permits no redirects, and must pass schema, identity, currency, finite-rate, and publication-date validation.
 

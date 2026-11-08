@@ -6,7 +6,7 @@ use codexhalo_pricing::{catalog_status, install_catalog, record_cache_error, rec
     PricingCatalog, PricingCatalogStatus, MAX_CATALOG_BYTES};
 use serde::{Deserialize, Serialize};
 
-const CATALOG_URL: &str = "https://raw.githubusercontent.com/Mike-Animal-Counseling/CodexHalo/main/data/pricing.json";
+const CATALOG_URL: &str = "https://raw.githubusercontent.com/Mike-Animal-Counseling/codex-halo/main/data/pricing.json";
 const REFRESH_INTERVAL_MS: i64 = 24 * 60 * 60 * 1000;
 const MAX_CACHE_BYTES: usize = MAX_CATALOG_BYTES + 4096;
 

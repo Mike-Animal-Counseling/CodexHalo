@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "privacy-public-text.ps1")
 
-$known = 'https://raw.githubusercontent.com/Mike-Animal-Counseling/CodexHalo/main/data/pricing.json Vector Permutation AES for x86_64/SSSE3, Mike Hamburg (Stanford University)'
+$known = 'https://raw.githubusercontent.com/Mike-Animal-Counseling/codex-halo/main/data/pricing.json Vector Permutation AES for x86_64/SSSE3, Mike Hamburg (Stanford University)'
 if ((Remove-PublicReleaseAttributions $known).Contains('Mike')) {
     throw 'Reviewed complete public strings were not excluded.'
 }

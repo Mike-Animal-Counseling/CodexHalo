@@ -9,7 +9,7 @@ body:
         Thanks for helping improve CodexHalo. Search existing issues first.
         Do not include credentials, auth.json, raw Codex sessions, prompts,
         account details, or full personal paths. Sanitize any screenshot or error text.
-        Report security vulnerabilities privately using [SECURITY.md](https://github.com/Mike-Animal-Counseling/CodexHalo/blob/main/SECURITY.md).
+        Report security vulnerabilities privately using [SECURITY.md](https://github.com/Mike-Animal-Counseling/codex-halo/blob/main/SECURITY.md).
   - type: input
     id: app_version
     attributes:

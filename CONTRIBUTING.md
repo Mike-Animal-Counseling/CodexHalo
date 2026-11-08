@@ -5,7 +5,7 @@ small, the desktop behavior predictable, and Codex data on the user's computer.
 
 ## Before you start
 
-Use [GitHub Issues](https://github.com/Mike-Animal-Counseling/CodexHalo/issues)
+Use [GitHub Issues](https://github.com/Mike-Animal-Counseling/codex-halo/issues)
 for reproducible bugs or focused feature proposals. For a substantial behavior
 change, describe the problem and intended experience before opening a large PR.
 Report vulnerabilities through [SECURITY.md](SECURITY.md); never attach Codex
