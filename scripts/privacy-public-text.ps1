@@ -4,7 +4,7 @@
 # private-file, credential-shaped, and PE-metadata checks still scan the original text.
 function Remove-PublicReleaseAttributions([string]$Text) {
     $publicStrings = @(
-        'https://raw.githubusercontent.com/Mike-Animal-Counseling/CodexHalo/main/data/pricing.json',
+        'https://raw.githubusercontent.com/Mike-Animal-Counseling/codex-halo/main/data/pricing.json',
         'Vector Permutation AES for x86_64/SSSE3, Mike Hamburg (Stanford University)'
     )
     foreach ($publicString in $publicStrings) {

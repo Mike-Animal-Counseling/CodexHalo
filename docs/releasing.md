@@ -97,11 +97,11 @@ or preview files to SHA256SUMS as well. Then create the draft and upload those
 optional assets with `gh release upload`:
 
 ```powershell
-gh release create $releaseTag $installer $checksumPath --repo Mike-Animal-Counseling/CodexHalo --draft --verify-tag --title "CodexHalo $releaseTag" --notes-file $notesPath
-gh release view $releaseTag --repo Mike-Animal-Counseling/CodexHalo --json tagName,isDraft,assets,targetCommitish
+gh release create $releaseTag $installer $checksumPath --repo Mike-Animal-Counseling/codex-halo --draft --verify-tag --title "CodexHalo $releaseTag" --notes-file $notesPath
+gh release view $releaseTag --repo Mike-Animal-Counseling/codex-halo --json tagName,isDraft,assets,targetCommitish
 $downloadDir = "$releaseDir/download-check"
 New-Item -ItemType Directory -Path $downloadDir -Force | Out-Null
-gh release download $releaseTag --repo Mike-Animal-Counseling/CodexHalo --pattern $installerName --dir $downloadDir
+gh release download $releaseTag --repo Mike-Animal-Counseling/codex-halo --pattern $installerName --dir $downloadDir
 $downloadHash = (Get-FileHash -LiteralPath "$downloadDir/$installerName" -Algorithm SHA256).Hash.ToLowerInvariant()
 if ($downloadHash -ne $installerHash) { throw "Uploaded installer checksum mismatch" }
 ```
@@ -114,9 +114,9 @@ and preview links. Resolve any discrepancy while the release remains a draft.
 For a stable release, publish the verified draft as latest:
 
 ```powershell
-gh release edit $releaseTag --repo Mike-Animal-Counseling/CodexHalo --draft=false --latest
-gh release view $releaseTag --repo Mike-Animal-Counseling/CodexHalo --json tagName,isDraft,isPrerelease,url,publishedAt,assets
-$publicUrl = "https://github.com/Mike-Animal-Counseling/CodexHalo/releases/download/$releaseTag/$installerName"
+gh release edit $releaseTag --repo Mike-Animal-Counseling/codex-halo --draft=false --latest
+gh release view $releaseTag --repo Mike-Animal-Counseling/codex-halo --json tagName,isDraft,isPrerelease,url,publishedAt,assets
+$publicUrl = "https://github.com/Mike-Animal-Counseling/codex-halo/releases/download/$releaseTag/$installerName"
 $publicCopy = "$releaseDir/public-download-check.exe"
 Invoke-WebRequest -UseBasicParsing -Uri $publicUrl -OutFile $publicCopy
 $publicHash = (Get-FileHash -LiteralPath $publicCopy -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -125,7 +125,7 @@ if ($publicHash -ne $installerHash) { throw "Public installer checksum mismatch"
 
 Check the README links as a signed-out visitor, including the current installer,
 checksum file, News, and demo. Verify main/tag synchronization and the fixed
-[public pricing endpoint](https://raw.githubusercontent.com/Mike-Animal-Counseling/CodexHalo/main/data/pricing.json).
+[public pricing endpoint](https://raw.githubusercontent.com/Mike-Animal-Counseling/codex-halo/main/data/pricing.json).
 The repository's scheduled price check only creates a candidate artifact;
 maintainers must review and publish catalog changes.
 
